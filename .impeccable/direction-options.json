@@ -1,0 +1,69 @@
+{
+  "title": "Choose Hi Hat's visual world",
+  "question": "Keep the assigned acoustic-calibration world, take a challenger, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Calibrated Silence",
+      "kicker": "THE ROLL",
+      "lineage": "anechoic chambers and acoustic calibration plots",
+      "thesis": "Music enters a room built to reveal exactly what is present, never what is imagined.",
+      "palette": ["#111311", "#E8ECE6", "#B7FF3C", "#55605A"],
+      "materials": ["sound-absorbing wedges", "calibrated trace paper", "machined aluminum"],
+      "viewport": "A quiet measurement field gives one monumental search line to the listener while verified quality sits on a precise baseline beneath it.",
+      "risk": "Can feel clinical if album art does not become the living signal.",
+      "case": "Best fit: the world makes honest quality and focused listening feel native without copying a streaming service."
+    },
+    {
+      "id": "challenger-crouwel",
+      "label": "Signal Grid",
+      "kicker": "CHALLENGER",
+      "lineage": "Wim Crouwel construction-grid specimens",
+      "thesis": "Every track, state, and quality value snaps into one visible system.",
+      "palette": ["#F4F7F3", "#1721C6", "#151816", "#B7FF3C"],
+      "materials": ["construction grid", "catalog ink", "numbered cells"],
+      "viewport": "The search field and results assemble from whole grid cells, with artwork breaking one deliberate block.",
+      "risk": "Fuses cleanly, but the visible grid can compete with artwork on compact phones.",
+      "case": "Higher structural clarity than the roll, but lower audience identification than acoustic calibration.",
+      "hero": "https://impeccable.style/worlds/cards/crouwel-grid-specimen-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/crouwel-grid-specimen.webp"
+    },
+    {
+      "id": "challenger-cyclorama",
+      "label": "Listening Dawn",
+      "kicker": "CHALLENGER",
+      "lineage": "theater cyclorama lighting cues",
+      "thesis": "Playback moves the room from blackout through cobalt and rose into full day.",
+      "palette": ["#06070A", "#1648C8", "#E87889", "#F4F6F0"],
+      "materials": ["infinite horizon", "lighting cue bands", "stage wash"],
+      "viewport": "Search rests on a black horizon; the selected album introduces the first light and playback opens the room.",
+      "risk": "Emotionally strong, but color-led state needs careful non-color equivalents.",
+      "case": "Excellent listening atmosphere, but less precise than the roll for quality and download state.",
+      "hero": "https://impeccable.style/worlds/cards/stagecraft-theater-lighting-cyclorama-dawn-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/stagecraft-theater-lighting-cyclorama-dawn.webp"
+    },
+    {
+      "id": "challenger-sixpack",
+      "label": "Night Instruments",
+      "kicker": "CHALLENGER",
+      "lineage": "night-flight instrument six-packs",
+      "thesis": "Each control owns one truth and the listener reads them in a practiced sweep.",
+      "palette": ["#080A09", "#EEF2E8", "#91E86B", "#D69B36"],
+      "materials": ["matte instrument panel", "luminous markings", "damped needles"],
+      "viewport": "Artwork replaces the outside view while transport, time, source, output, and download each report one trusted state.",
+      "risk": "Strong audiophile recognition, but literal gauges could overcomplicate a deliberately minimal player.",
+      "case": "High audience identification, but lower product clarity than the assigned field.",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-night-flight-six-pack-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/signals-instruments-night-flight-six-pack.webp"
+    }
+  ],
+  "reroll": true,
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A familiar dark music player, executed with exceptional restraint.",
+    "viewport": "Large cover art, centered transport controls, search rows, and a compact quality badge.",
+    "risk": "Immediately familiar but indistinguishable from the category it is meant to simplify."
+  },
+  "steer": true
+}
