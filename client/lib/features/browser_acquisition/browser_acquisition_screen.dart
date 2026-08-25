@@ -12,8 +12,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/track.dart';
+import '../../services/download_service.dart';
 import '../../services/local_import_service.dart';
 
 enum BrowserAcquisitionPhase {
@@ -49,6 +51,8 @@ class _BrowserAcquisitionScreenState
   bool downloadRequested = false;
   bool automationRunning = false;
   bool scanRunning = false;
+  bool showProviderBrowser = false;
+  bool debugVisible = false;
   String? expectedFilename;
   int? expectedLength;
   Set<String> existingDownloads = {};
@@ -62,6 +66,15 @@ class _BrowserAcquisitionScreenState
   void initState() {
     super.initState();
     initialization = _snapshotDownloads();
+    ref.read(downloadServiceProvider.notifier).begin(widget.track.id);
+    SharedPreferences.getInstance().then((preferences) {
+      if (!mounted) return;
+      setState(() {
+        debugVisible =
+            preferences.getBool('providerBrowserDebugVisible') ?? false;
+        showProviderBrowser = debugVisible;
+      });
+    });
   }
 
   @override
@@ -89,7 +102,13 @@ class _BrowserAcquisitionScreenState
         current?.host != 'monochrome.tf' ||
         current?.path != expectedPath) {
       if (mounted) {
-        setState(() => phase = BrowserAcquisitionPhase.waitingForAuthorization);
+        setState(() {
+          phase = BrowserAcquisitionPhase.waitingForAuthorization;
+          showProviderBrowser = true;
+        });
+        ref
+            .read(downloadServiceProvider.notifier)
+            .update(widget.track.id, 'AUTH_REQUIRED');
       }
       return;
     }
@@ -112,12 +131,27 @@ class _BrowserAcquisitionScreenState
       if (!mounted) return;
       final state = result?.toString().replaceAll('"', '');
       if (state == 'authorization') {
-        setState(() => phase = BrowserAcquisitionPhase.waitingForAuthorization);
+        setState(() {
+          phase = BrowserAcquisitionPhase.waitingForAuthorization;
+          showProviderBrowser = true;
+        });
+        ref
+            .read(downloadServiceProvider.notifier)
+            .update(widget.track.id, 'AUTH_REQUIRED');
       } else if (state == 'started') {
         downloadRequested = true;
-        setState(() => phase = BrowserAcquisitionPhase.startingDownload);
+        setState(() {
+          phase = BrowserAcquisitionPhase.startingDownload;
+          showProviderBrowser = debugVisible;
+        });
+        ref
+            .read(downloadServiceProvider.notifier)
+            .update(widget.track.id, 'STARTING_DOWNLOAD');
       } else {
         setState(() => phase = BrowserAcquisitionPhase.matchingTrack);
+        ref
+            .read(downloadServiceProvider.notifier)
+            .update(widget.track.id, 'MATCHING_TRACK');
       }
     } catch (_) {
       if (mounted) {
@@ -125,6 +159,12 @@ class _BrowserAcquisitionScreenState
           phase = BrowserAcquisitionPhase.failed;
           detail = 'The provider page could not start its Download action.';
         });
+        ref
+            .read(downloadServiceProvider.notifier)
+            .fail(
+              widget.track.id,
+              'The provider page could not start its Download action.',
+            );
       }
     } finally {
       automationRunning = false;
@@ -145,6 +185,9 @@ class _BrowserAcquisitionScreenState
       phase = BrowserAcquisitionPhase.downloading;
       detail = request.suggestedFilename;
     });
+    ref
+        .read(downloadServiceProvider.notifier)
+        .update(widget.track.id, 'DOWNLOADING');
     expectedFilename = request.suggestedFilename;
     expectedLength = request.contentLength > 0 ? request.contentLength : null;
     monitor?.cancel();
@@ -197,14 +240,21 @@ class _BrowserAcquisitionScreenState
   Future<void> _finalize(File file) async {
     try {
       setState(() => phase = BrowserAcquisitionPhase.verifying);
+      ref
+          .read(downloadServiceProvider.notifier)
+          .update(widget.track.id, 'VERIFYING');
       final local = await ref
           .read(localImportServiceProvider)
           .importForTrack(file, widget.track);
       if (!mounted) return;
       setState(() => phase = BrowserAcquisitionPhase.finalizing);
+      ref
+          .read(downloadServiceProvider.notifier)
+          .update(widget.track.id, 'FINALIZING');
       await Future<void>.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
       setState(() => phase = BrowserAcquisitionPhase.ready);
+      ref.read(downloadServiceProvider.notifier).complete(widget.track.id);
       await Future<void>.delayed(const Duration(milliseconds: 350));
       if (!mounted) return;
       Navigator.of(context).pop(local);
@@ -214,6 +264,12 @@ class _BrowserAcquisitionScreenState
         phase = BrowserAcquisitionPhase.failed;
         detail = error.toString().replaceFirst('FormatException: ', '');
       });
+      ref
+          .read(downloadServiceProvider.notifier)
+          .fail(
+            widget.track.id,
+            error.toString().replaceFirst('FormatException: ', ''),
+          );
     }
   }
 
@@ -224,7 +280,10 @@ class _BrowserAcquisitionScreenState
       actions: [
         IconButton(
           tooltip: 'Cancel acquisition',
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            ref.read(downloadServiceProvider.notifier).cancel(widget.track.id);
+            Navigator.of(context).pop();
+          },
           icon: const Icon(Icons.close),
         ),
       ],
@@ -253,25 +312,44 @@ class _BrowserAcquisitionScreenState
               if (snapshot.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
               }
-              return InAppWebView(
-                initialUrlRequest: URLRequest(url: WebUri(trackUrl)),
-                initialSettings: InAppWebViewSettings(
-                  javaScriptEnabled: true,
-                  useOnDownloadStart: true,
-                  mediaPlaybackRequiresUserGesture: true,
-                ),
-                onWebViewCreated: (controller) =>
-                    webViewController = controller,
-                onLoadStop: (controller, _) => _onLoaded(controller),
-                onReceivedError: (_, request, error) {
-                  if (request.isForMainFrame == false || !mounted) return;
-                  setState(() {
-                    phase = BrowserAcquisitionPhase.failed;
-                    detail = 'Monochrome could not be loaded. Check your connection and retry.';
-                  });
-                },
-                onDownloadStartRequest: (_, request) =>
-                    _onDownloadStarted(request),
+              return Stack(
+                children: [
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text(
+                        phase == BrowserAcquisitionPhase.waitingForAuthorization
+                            ? 'The provider browser is ready for verification.'
+                            : 'Hi Hat is acquiring this track in the background.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                  ),
+                  Offstage(
+                    offstage: !showProviderBrowser,
+                    child: InAppWebView(
+                      initialUrlRequest: URLRequest(url: WebUri(trackUrl)),
+                      initialSettings: InAppWebViewSettings(
+                        javaScriptEnabled: true,
+                        useOnDownloadStart: true,
+                        mediaPlaybackRequiresUserGesture: true,
+                      ),
+                      onWebViewCreated: (controller) =>
+                          webViewController = controller,
+                      onLoadStop: (controller, _) => _onLoaded(controller),
+                      onReceivedError: (_, request, error) {
+                        if (request.isForMainFrame == false || !mounted) return;
+                        setState(() {
+                          phase = BrowserAcquisitionPhase.failed;
+                          detail = 'Monochrome could not be loaded. Check your connection and retry.';
+                        });
+                      },
+                      onDownloadStartRequest: (_, request) =>
+                          _onDownloadStarted(request),
+                    ),
+                  ),
+                ],
               );
             },
           ),

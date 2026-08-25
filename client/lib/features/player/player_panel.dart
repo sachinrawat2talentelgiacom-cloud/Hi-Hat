@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/track.dart';
-import '../../services/api_client.dart';
 import '../../services/audio_engine.dart';
 import '../../services/download_service.dart';
 
@@ -156,19 +155,20 @@ class PlayerPanel extends ConsumerWidget {
 
   static String _phase(String? value) => switch (value) {
     'RESOLVING' => 'Resolving the highest lossless source…',
-    'DOWNLOADING' => 'Downloading to the Windows backend…',
+    'DOWNLOADING' => 'Downloading FLAC locally…',
     'VERIFYING' => 'Verifying the FLAC…',
     'TRANSFERRING' => 'Saving to this device…',
     _ => 'Preparing…',
   };
 
   static bool _isActivePhase(String? value) => const {
-    'QUEUED',
-    'RESOLVING',
+    'OPENING_PROVIDER',
+    'AUTH_REQUIRED',
+    'MATCHING_TRACK',
+    'STARTING_DOWNLOAD',
     'DOWNLOADING',
     'VERIFYING',
-    'READY',
-    'TRANSFERRING',
+    'FINALIZING',
   }.contains(value);
 }
 
@@ -224,12 +224,11 @@ class MiniPlayer extends ConsumerWidget {
   }
 }
 
-class _LargeArtwork extends ConsumerWidget {
+class _LargeArtwork extends StatelessWidget {
   const _LargeArtwork({required this.track});
   final TrackSummary track;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final api = ref.watch(apiProvider);
+  Widget build(BuildContext context) {
     return AspectRatio(
       aspectRatio: 1,
       child: ClipRRect(
@@ -240,8 +239,7 @@ class _LargeArtwork extends ConsumerWidget {
                 child: const Icon(Icons.album, size: 90),
               )
             : Image.network(
-                api.artworkUrl(track.artworkUrl!),
-                headers: api.headers,
+                track.artworkUrl!,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => ColoredBox(
                   color: Theme.of(context).colorScheme.surfaceContainerHigh,

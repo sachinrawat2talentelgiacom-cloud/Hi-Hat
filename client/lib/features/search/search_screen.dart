@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/track.dart';
-import '../../services/api_client.dart';
 import '../../services/audio_engine.dart';
 import '../../services/download_service.dart';
+import '../browser_acquisition/browser_acquisition_screen.dart';
 import 'search_controller.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -160,8 +160,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     TrackSummary? local;
     if (track.isLocal) {
       local = track;
+    } else if (track.provider == 'monochrome') {
+      local = await Navigator.of(context).push<TrackSummary>(
+        MaterialPageRoute(
+          builder: (_) => BrowserAcquisitionScreen(track: track),
+          fullscreenDialog: true,
+        ),
+      );
     } else {
-      local = await ref.read(downloadServiceProvider.notifier).acquire(track);
+      ref
+          .read(downloadServiceProvider.notifier)
+          .fail(track.id, 'This provider is not supported for acquisition.');
     }
     if (local != null) {
       await ref.read(audioEngineProvider.notifier).playLocal(local);
@@ -181,12 +190,18 @@ class TrackResultTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final api = ref.watch(apiProvider);
     final transfer = ref.watch(downloadServiceProvider);
     final active =
         transfer.trackId == track.id &&
-        transfer.phase != 'COMPLETED' &&
-        transfer.phase != 'FAILED';
+        const {
+          'OPENING_PROVIDER',
+          'AUTH_REQUIRED',
+          'MATCHING_TRACK',
+          'STARTING_DOWNLOAD',
+          'DOWNLOADING',
+          'VERIFYING',
+          'FINALIZING',
+        }.contains(transfer.phase);
     final qualityLabel = track.isLocal
         ? track.quality.display
         : '${track.quality.display} listed';
@@ -200,7 +215,7 @@ class TrackResultTile extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           child: Row(
             children: [
-              _Artwork(track: track, api: api, size: 58),
+              _Artwork(track: track, size: 58),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -262,9 +277,8 @@ class TrackResultTile extends ConsumerWidget {
 }
 
 class _Artwork extends StatelessWidget {
-  const _Artwork({required this.track, required this.api, required this.size});
+  const _Artwork({required this.track, required this.size});
   final TrackSummary track;
-  final HiHatApi api;
   final double size;
 
   @override
@@ -280,8 +294,7 @@ class _Artwork extends StatelessWidget {
                 child: const Icon(Icons.album_outlined),
               )
             : Image.network(
-                api.artworkUrl(url),
-                headers: api.headers,
+                url,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => ColoredBox(
                   color: Theme.of(context).colorScheme.surfaceContainerHigh,
