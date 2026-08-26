@@ -7,6 +7,13 @@ void main() {
     expect(ProviderSearchService.cacheTtl, const Duration(minutes: 7));
   });
 
+  test('provider search starts with the current Monochrome catalog API', () {
+    expect(
+      ProviderSearchService.instances.first,
+      'https://lol.samidy.workers.dev',
+    );
+  });
+
   test('search watchdog is bounded to three ten-second attempts', () {
     expect(SearchController.searchTimeout, const Duration(seconds: 10));
     expect(SearchController.maxSearchAttempts, 3);

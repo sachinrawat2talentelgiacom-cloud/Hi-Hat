@@ -23,6 +23,10 @@ class ProviderSearchService {
       );
 
   static const instances = <String>[
+    // Monochrome's current web client uses this v2.10 worker as its default
+    // catalog API. Keep the older official hosts as failovers because their
+    // availability changes independently.
+    'https://lol.samidy.workers.dev',
     'https://monochrome-api.samidy.com',
     'https://api.monochrome.tf',
   ];
