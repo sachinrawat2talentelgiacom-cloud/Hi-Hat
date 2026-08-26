@@ -12,6 +12,7 @@ import '../../services/audio_engine.dart';
 import '../../services/flac_metadata.dart';
 import '../../services/library_folder_service.dart';
 import '../../services/library_service.dart';
+import '../../widgets/track_artwork.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -102,20 +103,47 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   sliver: SliverList.separated(
                     itemCount: tracks.length,
-                    separatorBuilder: (_, _) => const Divider(indent: 58),
+                    separatorBuilder: (_, _) => const Divider(indent: 72),
                     itemBuilder: (context, index) {
                       final track = tracks[index];
+                      final subtitleParts = <String>[
+                        track.artist,
+                        if (track.albumWithYear != null)
+                          track.albumWithYear!
+                        else if (track.album != null)
+                          track.album!,
+                        track.quality.display,
+                        if (track.durationSeconds != null &&
+                            track.durationSeconds! > 0)
+                          track.formattedDuration,
+                      ];
                       return ListTile(
-                        minTileHeight: 70,
-                        leading: const SizedBox.square(
-                          dimension: 44,
-                          child: Icon(Icons.album_outlined),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                        title: Text(track.title),
+                        minTileHeight: 68,
+                        leading: TrackArtwork(
+                          artworkUrl: track.artworkUrl,
+                          size: 48,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        title: Text(
+                          track.displayTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         subtitle: Text(
-                          '${track.artist}  ·  ${track.quality.display}',
+                          subtitleParts.join('  ·  '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
                         ),
-                        trailing: const Icon(Icons.play_arrow_rounded),
+                        trailing: const Icon(Icons.play_arrow_rounded, size: 28),
                         onTap: () => ref
                             .read(audioEngineProvider.notifier)
                             .playLocal(track),
@@ -157,6 +185,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final digest = sha256.convert(bytes).toString();
     final title = metadata.title ?? p.basenameWithoutExtension(path);
     final artist = metadata.artist ?? 'Unknown artist';
+    final artworkPath = metadata.picture != null
+        ? await LibraryFolderService.saveCoverArt(
+            digest,
+            metadata.picture!.data,
+            metadata.picture!.mimeType,
+          )
+        : await LibraryFolderService.findDirectoryCover(file.parent);
+
     await ref
         .read(databaseProvider)
         .saveTrack(
@@ -167,12 +203,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             title: title,
             artist: artist,
             album: Value(metadata.album),
+            artworkUrl: Value(artworkPath),
             localPath: path,
             sha256: digest,
             codec: const Value('FLAC'),
             bitDepth: Value(metadata.bitDepth),
             sampleRate: Value(metadata.sampleRate),
+            channels: Value(metadata.channels),
+            durationSeconds: Value(metadata.durationSeconds),
             fileSize: bytes.length,
+            year: Value(metadata.year),
+            trackNumber: Value(metadata.trackNumber),
+            discNumber: Value(metadata.discNumber),
+            genre: Value(metadata.genre),
+            bpm: Value(metadata.bpm),
+            key: Value(metadata.key),
+            isrc: Value(metadata.isrc),
+            copyright: Value(metadata.copyright),
+            replayGain: Value(metadata.replayGain),
+            peak: Value(metadata.peak),
+            version: Value(metadata.version),
+            audioQualityLabel: const Value('FLAC'),
           ),
         );
     if (context.mounted) {

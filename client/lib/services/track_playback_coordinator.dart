@@ -14,7 +14,8 @@ import 'library_folder_service.dart';
 class TrackPlaybackCoordinator {
   TrackPlaybackCoordinator(this.ref);
   final Ref ref;
-  bool _routeOpen = false;
+  final Map<String, Completer<TrackSummary?>> _activeSessions = {};
+  final Map<String, OverlayEntry> _activeEntries = {};
 
   Future<TrackSummary?> play(
     TrackSummary track,
@@ -31,29 +32,36 @@ class TrackPlaybackCoordinator {
       }
     }
     if (local == null && track.provider == 'monochrome') {
-      if (_routeOpen) return null;
-      _routeOpen = true;
-      ref.read(downloadServiceProvider.notifier).begin(track.id);
+      if (_activeSessions.containsKey(track.id)) {
+        ref.read(downloadServiceProvider.notifier).focus(track.id);
+        return _activeSessions[track.id]!.future;
+      }
+
+      ref.read(downloadServiceProvider.notifier).begin(track.id, track: track);
+      final completer = Completer<TrackSummary?>();
+      _activeSessions[track.id] = completer;
+
       try {
         final folderReady = await _ensureLibraryFolder(navigator);
         if (!folderReady) {
           ref
               .read(downloadServiceProvider.notifier)
-              .fail(track.id, 'Choose a music folder before downloading.');
+              .fail(track.id, 'Choose a music folder before downloading.', track: track);
+          _activeSessions.remove(track.id);
           return null;
         }
-        local = await _runAcquisitionInOverlay(track, navigator);
+        local = await _runAcquisitionInOverlay(track, navigator, completer);
       } catch (error) {
         ref
             .read(downloadServiceProvider.notifier)
-            .fail(track.id, 'Track preparation stopped: $error');
+            .fail(track.id, 'Track preparation stopped: $error', track: track);
       } finally {
-        _routeOpen = false;
+        _activeSessions.remove(track.id);
       }
     } else if (local == null) {
       ref
           .read(downloadServiceProvider.notifier)
-          .fail(track.id, 'This provider is not supported for acquisition.');
+          .fail(track.id, 'This provider is not supported for acquisition.', track: track);
     }
     if (local != null) {
       await ref.read(audioEngineProvider.notifier).playLocal(local);
@@ -68,17 +76,18 @@ class TrackPlaybackCoordinator {
   Future<TrackSummary?> _runAcquisitionInOverlay(
     TrackSummary track,
     NavigatorState navigator,
+    Completer<TrackSummary?> completer,
   ) async {
     final overlay = navigator.overlay;
     if (overlay == null) {
       throw StateError('The app overlay is unavailable.');
     }
-    final completer = Completer<TrackSummary?>();
     late final OverlayEntry entry;
     var removed = false;
     void finish(TrackSummary? result) {
       if (removed) return;
       removed = true;
+      _activeEntries.remove(track.id);
       entry.remove();
       entry.dispose();
       if (!completer.isCompleted) completer.complete(result);
@@ -89,6 +98,7 @@ class TrackPlaybackCoordinator {
       builder: (_) =>
           BrowserAcquisitionScreen(track: track, onFinished: finish),
     );
+    _activeEntries[track.id] = entry;
     overlay.insert(entry);
     return completer.future;
   }

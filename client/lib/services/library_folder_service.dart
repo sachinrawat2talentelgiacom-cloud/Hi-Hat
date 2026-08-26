@@ -113,6 +113,14 @@ class LibraryFolderService {
           }
           continue;
         }
+        final artworkPath = metadata.picture != null
+            ? await saveCoverArt(
+                digest,
+                metadata.picture!.data,
+                metadata.picture!.mimeType,
+              )
+            : await findDirectoryCover(entity.parent);
+
         await database.saveTrack(
           TracksCompanion.insert(
             id: 'local:$digest',
@@ -121,6 +129,7 @@ class LibraryFolderService {
             title: metadata.title ?? p.basenameWithoutExtension(entity.path),
             artist: metadata.artist ?? 'Unknown artist',
             album: Value(metadata.album),
+            artworkUrl: Value(artworkPath),
             localPath: entity.path,
             sha256: digest,
             codec: const Value('FLAC'),
@@ -129,6 +138,18 @@ class LibraryFolderService {
             channels: Value(metadata.channels),
             durationSeconds: Value(metadata.durationSeconds),
             fileSize: bytes.length,
+            year: Value(metadata.year),
+            trackNumber: Value(metadata.trackNumber),
+            discNumber: Value(metadata.discNumber),
+            genre: Value(metadata.genre),
+            bpm: Value(metadata.bpm),
+            key: Value(metadata.key),
+            isrc: Value(metadata.isrc),
+            copyright: Value(metadata.copyright),
+            replayGain: Value(metadata.replayGain),
+            peak: Value(metadata.peak),
+            version: Value(metadata.version),
+            audioQualityLabel: const Value('FLAC'),
           ),
         );
         added++;
@@ -207,6 +228,13 @@ class LibraryFolderService {
         );
         if (await local.exists()) await local.delete();
         await temporary.rename(local.path);
+        final artworkPath = metadata.picture != null
+            ? await saveCoverArt(
+                digest,
+                metadata.picture!.data,
+                metadata.picture!.mimeType,
+              )
+            : null;
         await database.saveTrack(
           TracksCompanion.insert(
             id: duplicate?.id ?? 'local:$digest',
@@ -216,6 +244,7 @@ class LibraryFolderService {
                 metadata.title ?? p.basenameWithoutExtension(entry.file.name),
             artist: artist,
             album: Value(metadata.album),
+            artworkUrl: Value(artworkPath),
             localPath: local.path,
             sha256: digest,
             codec: const Value('FLAC'),
@@ -224,6 +253,18 @@ class LibraryFolderService {
             channels: Value(metadata.channels),
             durationSeconds: Value(metadata.durationSeconds),
             fileSize: bytes.length,
+            year: Value(metadata.year),
+            trackNumber: Value(metadata.trackNumber),
+            discNumber: Value(metadata.discNumber),
+            genre: Value(metadata.genre),
+            bpm: Value(metadata.bpm),
+            key: Value(metadata.key),
+            isrc: Value(metadata.isrc),
+            copyright: Value(metadata.copyright),
+            replayGain: Value(metadata.replayGain),
+            peak: Value(metadata.peak),
+            version: Value(metadata.version),
+            audioQualityLabel: const Value('FLAC'),
           ),
         );
         added++;
@@ -238,6 +279,47 @@ class LibraryFolderService {
 
   static String _safePathSegment(String value) =>
       value.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_').trim();
+
+  static Future<String?> saveCoverArt(
+    String digest,
+    List<int> data,
+    String mimeType,
+  ) async {
+    try {
+      final support = await getApplicationSupportDirectory();
+      final artworkDir = Directory(p.join(support.path, 'Artwork'));
+      await artworkDir.create(recursive: true);
+      final ext = mimeType.contains('png') ? 'png' : 'jpg';
+      final file = File(p.join(artworkDir.path, '$digest.$ext'));
+      if (!await file.exists()) {
+        await file.writeAsBytes(data, flush: true);
+      }
+      return file.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> findDirectoryCover(Directory dir) async {
+    try {
+      final candidates = [
+        'cover.jpg',
+        'folder.jpg',
+        'cover.png',
+        'folder.png',
+        'front.jpg',
+        'front.png',
+        'artwork.jpg',
+      ];
+      for (final name in candidates) {
+        final file = File(p.join(dir.path, name));
+        if (await file.exists()) {
+          return file.path;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
 
   Future<void> _verifyWritable(Directory folder) async {
     final probe = File(

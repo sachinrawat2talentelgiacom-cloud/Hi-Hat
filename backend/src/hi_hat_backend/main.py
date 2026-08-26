@@ -185,6 +185,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not cover_id.replace("-", "").isalnum():
             raise HTTPException(status_code=400, detail="Invalid artwork identifier")
         last_error: Exception | None = None
+        # Try direct Tidal CDN first for standard UUID covers
+        if "-" in cover_id or len(cover_id) == 32:
+            try:
+                clean_uuid = cover_id.replace("-", "/")
+                upstream = await services.http.get(
+                    f"https://resources.tidal.com/images/{clean_uuid}/640x640.jpg",
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                if upstream.status_code == 200:
+                    content_type = upstream.headers.get("content-type", "image/jpeg")
+                    return Response(
+                        upstream.content,
+                        media_type=content_type,
+                        headers={"Cache-Control": "private, max-age=86400"},
+                    )
+            except httpx.HTTPError as exc:
+                last_error = exc
+
         for instance in services.monochrome.instances:
             try:
                 upstream = await services.http.get(f"{instance}/cover/", params={"id": cover_id, "size": "640"})

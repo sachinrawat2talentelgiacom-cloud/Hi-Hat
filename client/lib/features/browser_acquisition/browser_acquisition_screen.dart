@@ -9,6 +9,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -21,6 +22,7 @@ import '../../diagnostics/browser_acquisition_log.dart';
 import '../../models/track.dart';
 import '../../services/download_service.dart';
 import '../../services/local_import_service.dart';
+import '../../widgets/track_artwork.dart';
 
 enum BrowserAcquisitionPhase {
   openingSource,
@@ -137,13 +139,17 @@ class _BrowserAcquisitionScreenState
   }
 
   Future<void> _snapshotDownloads() async {
-    final folder = await getDownloadsDirectory();
-    if (folder == null || !await folder.exists()) return;
-    existingDownloads = await folder
-        .list()
-        .where((entry) => entry is File)
-        .map((entry) => entry.path)
-        .toSet();
+    try {
+      final folder = await getDownloadsDirectory();
+      if (folder == null || !await folder.exists()) return;
+      existingDownloads = await folder
+          .list()
+          .where((entry) => entry is File)
+          .map((entry) => entry.path)
+          .toSet();
+    } catch (_) {
+      // Scoped storage or unsupported platform error; safe to ignore.
+    }
   }
 
   Future<void> _onLoaded(InAppWebViewController controller) async {
@@ -158,9 +164,15 @@ class _BrowserAcquisitionScreenState
       'expectedUrl': trackUrl,
     });
     final expectedPath = Uri.parse(trackUrl).path;
+    final currentDecoded = Uri.decodeComponent(current?.path ?? '')
+        .replaceAll(RegExp(r'/+$'), '')
+        .toLowerCase();
+    final expectedDecoded = Uri.decodeComponent(expectedPath)
+        .replaceAll(RegExp(r'/+$'), '')
+        .toLowerCase();
     if (current?.scheme != 'https' ||
         current?.host != 'monochrome.tf' ||
-        current?.path.toLowerCase() != expectedPath.toLowerCase()) {
+        currentDecoded != expectedDecoded) {
       if (mounted) {
         setState(() {
           phase = BrowserAcquisitionPhase.waitingForAuthorization;
@@ -183,7 +195,7 @@ class _BrowserAcquisitionScreenState
             '''
           (() => {
             const verification = document.querySelector(
-              'iframe[src*="turnstile"], input[name="cf-turnstile-response"], #challenge-form'
+              'iframe[src*="turnstile"], input[name="cf-turnstile-response"], #challenge-form, [data-sitekey]'
             );
             if (verification && verification.offsetParent !== null) {
               return 'authorization';
@@ -196,7 +208,11 @@ class _BrowserAcquisitionScreenState
               .toLowerCase()
               .replace(/\\s+/g, ' ')
               .trim();
-            const visible = (element) => element && element.offsetParent !== null;
+            const visible = (element) => {
+              if (!element) return false;
+              const style = window.getComputedStyle(element);
+              return style.display !== 'none' && style.visibility !== 'hidden' && element.offsetParent !== null;
+            };
 
             let target = document.querySelector(
               `[data-track-id="\${CSS.escape(trackId)}"], ` +
@@ -222,10 +238,10 @@ class _BrowserAcquisitionScreenState
                 for (let depth = 0; element && depth < 7; depth += 1) {
                   const text = normalize(element.innerText || element.textContent);
                   const rect = element.getBoundingClientRect();
-                  const compactRow = rect.height >= 32 && rect.height <= 140 &&
-                    rect.width >= 240 && text.length <= 240;
+                  const compactRow = rect.height >= 20 && rect.height <= 200 &&
+                    rect.width >= 50 && text.length <= 300;
                   if (compactRow && text.includes(wantedTitle) &&
-                      text.includes(wantedArtist) &&
+                      (!wantedArtist || text.includes(wantedArtist)) &&
                       !text.startsWith('search results for')) {
                     candidates.push({element, text, area: rect.width * rect.height});
                   }
@@ -236,25 +252,61 @@ class _BrowserAcquisitionScreenState
               target = candidates[0]?.element || null;
             }
 
+            if (!target) {
+              const allRows = [...document.querySelectorAll('li, [role="row"], [data-type="track"], .track, .track-item, .media-item, tr')];
+              for (const row of allRows) {
+                if (!visible(row)) continue;
+                const text = normalize(row.innerText || row.textContent);
+                if (text.includes(wantedTitle) && (!wantedArtist || text.includes(wantedArtist))) {
+                  target = row;
+                  break;
+                }
+              }
+            }
+
             if (!target) return 'loading:matching-row-not-found';
             const row = target.closest(
               'li, [role="row"], [data-type="track"], .track, .track-item, .media-item'
             ) || target;
-            row.scrollIntoView({block: 'center'});
+            row.scrollIntoView({block: 'center', behavior: 'instant'});
+
+            const inlineDownload = row.querySelector(
+              '[data-action="download"], button[title*="download" i], button[aria-label*="download" i], a[download]'
+            );
+            if (inlineDownload && visible(inlineDownload)) {
+              inlineDownload.click();
+              return `started:inline-download:\${normalize(row.innerText).slice(0, 160)}`;
+            }
+
             const rect = row.getBoundingClientRect();
+            const clickX = rect.left + Math.min(rect.width / 2, 120);
+            const clickY = rect.top + Math.min(rect.height / 2, 24);
+
             row.dispatchEvent(new MouseEvent('contextmenu', {
               bubbles: true,
               cancelable: true,
               view: window,
               button: 2,
               buttons: 2,
-              clientX: rect.left + Math.min(rect.width / 2, 240),
-              clientY: rect.top + Math.min(rect.height / 2, 24),
+              clientX: clickX,
+              clientY: clickY,
             }));
 
-            const contextDownload = document.querySelector(
-              '#context-menu li[data-action="download"], li[data-action="download"]'
+            let contextDownload = document.querySelector(
+              '#context-menu li[data-action="download"], #context-menu [data-action="download"], li[data-action="download"], [data-action="download"]'
             );
+            if (!contextDownload) {
+              const moreButton = row.querySelector(
+                'button[aria-label*="more" i], button[title*="more" i], .more-button, [data-action="more"], .track-more, .actions-button'
+              );
+              if (moreButton) {
+                moreButton.click();
+                contextDownload = document.querySelector(
+                  '#context-menu li[data-action="download"], [data-action="download"], li[data-action="download"]'
+                );
+              }
+            }
+
             if (!contextDownload) return 'loading:context-download-not-found';
             contextDownload.click();
             return `started:context-download:\${normalize(row.innerText).slice(0, 160)}`;
@@ -346,8 +398,6 @@ class _BrowserAcquisitionScreenState
   Future<DownloadStartResponse?> _onDownloadStarted(
     DownloadStartRequest request,
   ) async {
-    // This callback is authoritative. Stop every pending automation retry even
-    // if a platform returned an unexpected JavaScript result representation.
     downloadRequested = true;
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
@@ -366,12 +416,7 @@ class _BrowserAcquisitionScreenState
         .update(widget.track.id, 'DOWNLOADING', progress: 0.88);
     expectedFilename = request.suggestedFilename;
     expectedLength = request.contentLength > 0 ? request.contentLength : null;
-    monitor?.cancel();
-    monitor = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => _scanForCompletedFile(),
-    );
-    if (!Platform.isWindows) return null;
+
     final root = await getApplicationSupportDirectory();
     final folder = Directory(
       p.join(root.path, 'Acquisitions', widget.track.providerTrackId),
@@ -383,7 +428,151 @@ class _BrowserAcquisitionScreenState
     await acquisitionLog?.event('DOWNLOAD_DESTINATION_ASSIGNED', {
       'path': incoming.path,
     });
-    return DownloadStartResponse(handled: true, resultFilePath: incoming.path);
+
+    monitor?.cancel();
+    monitor = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _scanForCompletedFile(),
+    );
+
+    if (Platform.isWindows) {
+      return DownloadStartResponse(
+        handled: true,
+        resultFilePath: incoming.path,
+      );
+    }
+
+    final uri = request.url;
+    if (uri.scheme == 'blob') {
+      _extractAndSaveBlob(uri.toString(), incoming);
+    } else if (uri.scheme == 'data') {
+      _saveDataUri(uri.toString(), incoming);
+    } else if (uri.scheme == 'http' || uri.scheme == 'https') {
+      _downloadHttpUri(uri, incoming, userAgent: request.userAgent);
+    }
+    return null;
+  }
+
+  Future<void> _extractAndSaveBlob(String blobUrl, File destination) async {
+    try {
+      await acquisitionLog?.event('EXTRACTING_BLOB', {'blobUrl': blobUrl});
+      final js = '''
+        (async () => {
+          try {
+            const response = await fetch(${jsonEncode(blobUrl)});
+            const blob = await response.blob();
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.onerror = (e) => reject(e.toString());
+              reader.readAsDataURL(blob);
+            });
+          } catch (err) {
+            return 'error:' + err.toString();
+          }
+        })();
+      ''';
+      final result = await webViewController?.evaluateJavascript(source: js);
+      final dataString = result?.toString().replaceAll('"', '');
+      if (dataString != null && dataString.startsWith('data:')) {
+        await _saveDataUri(dataString, destination);
+      } else {
+        await acquisitionLog?.event('BLOB_EXTRACTION_FAILED', {
+          'result': result?.toString(),
+        });
+      }
+    } catch (e, stack) {
+      await acquisitionLog?.event('BLOB_EXTRACTION_ERROR', {
+        'error': e.toString(),
+        'stack': stack.toString(),
+      });
+    }
+  }
+
+  Future<void> _saveDataUri(String dataUri, File destination) async {
+    try {
+      final commaIndex = dataUri.indexOf(',');
+      if (commaIndex == -1) return;
+      final base64String = dataUri.substring(commaIndex + 1);
+      final bytes = base64Decode(base64String);
+      await destination.parent.create(recursive: true);
+      await destination.writeAsBytes(bytes, flush: true);
+      await acquisitionLog?.event('DOWNLOAD_SAVED_FROM_DATA', {
+        'path': destination.path,
+        'bytes': bytes.length,
+      });
+      monitor?.cancel();
+      await _finalize(destination);
+    } catch (e, stack) {
+      await acquisitionLog?.event('SAVE_DATA_URI_ERROR', {
+        'error': e.toString(),
+        'stack': stack.toString(),
+      });
+    }
+  }
+
+  Future<void> _downloadHttpUri(
+    WebUri uri,
+    File destination, {
+    String? userAgent,
+  }) async {
+    try {
+      await acquisitionLog?.event('DOWNLOADING_HTTP_URI', {
+        'url': _safeUrl(uri),
+      });
+      final dio = Dio();
+      final options = Options(
+        headers: {
+          if (userAgent != null && userAgent.isNotEmpty)
+            'User-Agent': userAgent,
+        },
+        responseType: ResponseType.bytes,
+      );
+      final response = await dio.get<List<int>>(
+        uri.toString(),
+        options: options,
+      );
+      if (response.data != null) {
+        await destination.parent.create(recursive: true);
+        await destination.writeAsBytes(response.data!, flush: true);
+        await acquisitionLog?.event('DOWNLOAD_SAVED_FROM_HTTP', {
+          'path': destination.path,
+          'bytes': response.data!.length,
+        });
+        monitor?.cancel();
+        await _finalize(destination);
+      }
+    } catch (e, stack) {
+      await acquisitionLog?.event('HTTP_DOWNLOAD_ERROR', {
+        'error': e.toString(),
+        'stack': stack.toString(),
+      });
+    }
+  }
+
+  Future<void> _handleDownloadedBytesFromBase64(
+    String base64Data, {
+    String? filename,
+    String? mimeType,
+  }) async {
+    downloadRequested = true;
+    automationTimer?.cancel();
+    downloadStartDeadline?.cancel();
+    setState(() {
+      phase = BrowserAcquisitionPhase.downloading;
+      detail = filename ?? expectedFilename;
+    });
+    ref
+        .read(downloadServiceProvider.notifier)
+        .update(widget.track.id, 'DOWNLOADING', progress: 0.88);
+    final root = await getApplicationSupportDirectory();
+    final folder = Directory(
+      p.join(root.path, 'Acquisitions', widget.track.providerTrackId),
+    );
+    await folder.create(recursive: true);
+    final incoming = File(p.join(folder.path, 'incoming.flac'));
+    controlledDownloadFile = incoming;
+    await _saveDataUri(base64Data, incoming);
   }
 
   Future<void> _scanForCompletedFile() async {
@@ -409,26 +598,31 @@ class _BrowserAcquisitionScreenState
       if (controlled != null && await controlled.exists()) {
         candidates.add(controlled);
       } else {
-        final folder = await getDownloadsDirectory();
-        if (folder == null || !await folder.exists()) return;
-        candidates.addAll(
-          await folder
-              .list()
-              .where((entry) => entry is File)
-              .cast<File>()
-              .where((file) {
-                final lower = file.path.toLowerCase();
-                final reportedName = expectedFilename;
-                final nameMatches =
-                    reportedName == null ||
-                    file.uri.pathSegments.last.toLowerCase() ==
-                        reportedName.toLowerCase();
-                return lower.endsWith('.flac') &&
-                    nameMatches &&
-                    !existingDownloads.contains(file.path);
-              })
-              .toList(),
-        );
+        try {
+          final folder = await getDownloadsDirectory();
+          if (folder != null && await folder.exists()) {
+            candidates.addAll(
+              await folder
+                  .list()
+                  .where((entry) => entry is File)
+                  .cast<File>()
+                  .where((file) {
+                    final lower = file.path.toLowerCase();
+                    final reportedName = expectedFilename;
+                    final nameMatches =
+                        reportedName == null ||
+                        file.uri.pathSegments.last.toLowerCase() ==
+                            reportedName.toLowerCase();
+                    return lower.endsWith('.flac') &&
+                        nameMatches &&
+                        !existingDownloads.contains(file.path);
+                  })
+                  .toList(),
+            );
+          }
+        } catch (_) {
+          // Ignore directory access restriction on mobile platforms
+        }
       }
       candidates.sort(
         (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
@@ -547,9 +741,28 @@ class _BrowserAcquisitionScreenState
       javaScriptEnabled: true,
       useOnDownloadStart: true,
       mediaPlaybackRequiresUserGesture: true,
+      domStorageEnabled: true,
+      databaseEnabled: true,
+      useWideViewPort: true,
+      loadWithOverviewMode: true,
     ),
     onWebViewCreated: (controller) {
       webViewController = controller;
+      controller.addJavaScriptHandler(
+        handlerName: 'onBlobDownload',
+        callback: (args) async {
+          if (args.isEmpty) return null;
+          final base64Data = args[0] as String;
+          final filename = args.length > 1 ? args[1] as String? : null;
+          final mimeType = args.length > 2 ? args[2] as String? : null;
+          await _handleDownloadedBytesFromBase64(
+            base64Data,
+            filename: filename,
+            mimeType: mimeType,
+          );
+          return true;
+        },
+      );
       acquisitionLog?.event('WEBVIEW_CREATED', {'url': trackUrl});
     },
     onLoadStart: (_, url) =>
@@ -558,6 +771,45 @@ class _BrowserAcquisitionScreenState
       await acquisitionLog?.event('NAVIGATION_FINISHED', {
         'url': _safeUrl(url),
       });
+      await controller.evaluateJavascript(source: '''
+        (() => {
+          if (window.__hihat_download_hooked) return;
+          window.__hihat_download_hooked = true;
+
+          async function handleBlobUrl(url, filename) {
+            try {
+              const response = await fetch(url);
+              const blob = await response.blob();
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64data = reader.result;
+                if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                  window.flutter_inappwebview.callHandler('onBlobDownload', base64data, filename, blob.type);
+                }
+              };
+              reader.readAsDataURL(blob);
+            } catch (e) {
+              console.error('HiHat blob intercept error:', e);
+            }
+          }
+
+          const originalClick = HTMLAnchorElement.prototype.click;
+          HTMLAnchorElement.prototype.click = function() {
+            const href = this.href || this.getAttribute('href') || '';
+            const download = this.getAttribute('download') || this.download;
+            if (download || href.startsWith('blob:') || href.startsWith('data:')) {
+              if (href.startsWith('blob:')) {
+                handleBlobUrl(href, download || 'download.flac');
+              } else if (href.startsWith('data:')) {
+                if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                  window.flutter_inappwebview.callHandler('onBlobDownload', href, download || 'download.flac', 'audio/flac');
+                }
+              }
+            }
+            return originalClick.apply(this, arguments);
+          };
+        })();
+      ''');
       await _onLoaded(controller);
     },
     onProgressChanged: (_, progress) {
@@ -589,125 +841,223 @@ class _BrowserAcquisitionScreenState
   @override
   Widget build(BuildContext context) {
     if (!debugPreferenceLoaded) return const SizedBox.shrink();
-    final browserMustBeVisible =
-        debugVisible ||
-        phase == BrowserAcquisitionPhase.waitingForAuthorization;
-    if (!browserMustBeVisible) {
-      return IgnorePointer(
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox.square(
-            dimension: 1,
-            child: FutureBuilder<void>(
-              future: initialization,
-              builder: (_, snapshot) =>
-                  snapshot.connectionState == ConnectionState.done
+
+    final transfer =
+        ref.watch(downloadServiceProvider).forTrack(widget.track.id);
+    final isMinimized = transfer?.isMinimized ?? false;
+    final isMaximized = transfer?.isMaximized ?? false;
+
+    if (isMinimized) {
+      return Offstage(
+        offstage: true,
+        child: FutureBuilder<void>(
+          future: initialization,
+          builder: (_, snapshot) =>
+              snapshot.connectionState == ConnectionState.done
                   ? _buildProviderWebView()
                   : const SizedBox.shrink(),
-            ),
-          ),
         ),
       );
     }
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.track.title, overflow: TextOverflow.ellipsis),
-        actions: [
-          if (debugVisible)
-            IconButton(
-              tooltip: 'Copy browser debug log',
-              onPressed: acquisitionLog == null
-                  ? null
-                  : () async {
-                      await Clipboard.setData(
-                        ClipboardData(text: acquisitionLog!.entries.join('\n')),
-                      );
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Browser debug log copied.'),
-                          ),
-                        );
+
+    final screenSize = MediaQuery.sizeOf(context);
+    final isCompact = screenSize.width < 700;
+
+    final windowWidget = Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      elevation: 16,
+      shadowColor: Colors.black87,
+      borderRadius:
+          isMaximized ? BorderRadius.zero : BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius:
+              isMaximized ? BorderRadius.zero : BorderRadius.circular(16),
+          border: isMaximized
+              ? null
+              : Border.all(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: 0.5),
+                  width: 1,
+                ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            backgroundColor:
+                Theme.of(context).colorScheme.surfaceContainerHighest,
+            elevation: 0,
+            leading: Padding(
+              padding: const EdgeInsets.all(8),
+              child: TrackArtwork(
+                artworkUrl: widget.track.artworkUrl,
+                size: 32,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            titleSpacing: 4,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.track.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${widget.track.artist}  ·  Search: $searchQuery',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              if (debugVisible)
+                IconButton(
+                  tooltip: 'Copy browser debug log',
+                  onPressed: acquisitionLog == null
+                      ? null
+                      : () async {
+                          await Clipboard.setData(
+                            ClipboardData(
+                              text: acquisitionLog!.entries.join('\n'),
+                            ),
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Browser debug log copied.'),
+                              ),
+                            );
+                          }
+                        },
+                  icon: const Icon(Icons.bug_report_outlined, size: 20),
+                ),
+              if (debugVisible && phase == BrowserAcquisitionPhase.ready)
+                TextButton(
+                  onPressed: () => _finish(completedTrack),
+                  child: const Text('Done'),
+                ),
+              IconButton(
+                tooltip: 'Minimize to dock',
+                onPressed: () {
+                  ref
+                      .read(downloadServiceProvider.notifier)
+                      .setMinimized(widget.track.id, true);
+                },
+                icon: const Icon(Icons.remove_rounded, size: 20),
+              ),
+              IconButton(
+                tooltip: isMaximized ? 'Restore window' : 'Maximize window',
+                onPressed: () {
+                  ref
+                      .read(downloadServiceProvider.notifier)
+                      .setMaximized(widget.track.id, !isMaximized);
+                },
+                icon: Icon(
+                  isMaximized
+                      ? Icons.fullscreen_exit_rounded
+                      : Icons.fullscreen_rounded,
+                  size: 20,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Cancel acquisition',
+                onPressed: () {
+                  ref
+                      .read(downloadServiceProvider.notifier)
+                      .cancel(widget.track.id);
+                  _finish(null);
+                },
+                icon: const Icon(Icons.close_rounded, size: 20),
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              _AcquisitionStatus(
+                phase: phase,
+                detail: detail,
+                onRetry: phase == BrowserAcquisitionPhase.failed
+                    ? () {
+                        setState(() {
+                          phase = BrowserAcquisitionPhase.openingSource;
+                          detail = null;
+                          downloadRequested = false;
+                        });
+                        webViewController?.reload();
                       }
-                    },
-              icon: const Icon(Icons.bug_report_outlined),
-            ),
-          if (debugVisible && phase == BrowserAcquisitionPhase.ready)
-            TextButton(
-              onPressed: () => _finish(completedTrack),
-              child: const Text('Done'),
-            ),
-          IconButton(
-            tooltip: 'Cancel acquisition',
-            onPressed: () {
-              ref
-                  .read(downloadServiceProvider.notifier)
-                  .cancel(widget.track.id);
-              _finish(null);
-            },
-            icon: const Icon(Icons.close),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _AcquisitionStatus(
-            phase: phase,
-            detail: detail,
-            onRetry: phase == BrowserAcquisitionPhase.failed
-                ? () {
-                    setState(() {
-                      phase = BrowserAcquisitionPhase.openingSource;
-                      detail = null;
-                      downloadRequested = false;
-                    });
-                    webViewController?.reload();
-                  }
-                : null,
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: FutureBuilder<void>(
-              future: initialization,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return Stack(
-                  children: [
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Text(
-                          phase ==
-                                  BrowserAcquisitionPhase
-                                      .waitingForAuthorization
-                              ? 'The provider browser is ready for verification.'
-                              : 'Hi Hat is acquiring this track in the background.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineSmall,
+                    : null,
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: FutureBuilder<void>(
+                  future: initialization,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    return Stack(
+                      children: [
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Text(
+                              phase ==
+                                      BrowserAcquisitionPhase
+                                          .waitingForAuthorization
+                                  ? 'The provider browser is ready for verification.'
+                                  : 'Searching and acquiring in Monochrome…',
+                              textAlign: TextAlign.center,
+                              style:
+                                  Theme.of(context).textTheme.headlineSmall,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      right: showProviderBrowser ? 0 : null,
-                      bottom: showProviderBrowser ? 0 : null,
-                      width: showProviderBrowser ? null : 1,
-                      height: showProviderBrowser ? null : 1,
-                      child: IgnorePointer(
-                        ignoring: !showProviderBrowser,
-                        child: _buildProviderWebView(),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                        Positioned.fill(
+                          child: _buildProviderWebView(),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              if (debugVisible) _BrowserDebugStrip(log: acquisitionLog),
+            ],
           ),
-          if (debugVisible) _BrowserDebugStrip(log: acquisitionLog),
-        ],
+        ),
+      ),
+    );
+
+    if (isMaximized) {
+      return windowWidget;
+    }
+
+    final windowWidth =
+        (screenSize.width * (isCompact ? 0.95 : 0.75)).clamp(360.0, 920.0);
+    final windowHeight =
+        (screenSize.height * (isCompact ? 0.88 : 0.75)).clamp(420.0, 720.0);
+
+    return Material(
+      color: Colors.black54,
+      child: Center(
+        child: SizedBox(
+          width: windowWidth,
+          height: windowHeight,
+          child: windowWidget,
+        ),
       ),
     );
   }

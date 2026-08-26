@@ -80,13 +80,38 @@ class LocalImportService {
           album: safePathSegment(album ?? 'Singles'),
           title: safePathSegment(title),
         );
+    String? artworkPath = requested.artworkUrl;
+    if (artworkPath == null && metadata.picture != null) {
+      artworkPath = await LibraryFolderService.saveCoverArt(
+        digest,
+        metadata.picture!.data,
+        metadata.picture!.mimeType,
+      );
+    }
+
     final quality = AudioQuality(
       codec: 'FLAC',
       lossless: true,
       bitDepth: metadata.bitDepth,
       sampleRate: metadata.sampleRate,
+      channels: metadata.channels,
+      bitrate: metadata.durationSeconds > 0
+          ? ((bytes.length * 8) / metadata.durationSeconds).round()
+          : null,
       label: 'verified',
     );
+    final year = metadata.year ?? requested.year;
+    final trackNumber = metadata.trackNumber ?? requested.trackNumber;
+    final discNumber = metadata.discNumber ?? requested.discNumber;
+    final genre = metadata.genre ?? requested.genre;
+    final bpm = metadata.bpm ?? requested.bpm;
+    final key = metadata.key ?? requested.key;
+    final isrc = metadata.isrc ?? requested.isrc;
+    final copyright = metadata.copyright ?? requested.copyright;
+    final replayGain = metadata.replayGain ?? requested.replayGain;
+    final peak = metadata.peak ?? requested.peak;
+    final version = metadata.version ?? requested.version;
+
     await database.saveTrack(
       TracksCompanion.insert(
         id: requested.id,
@@ -95,7 +120,7 @@ class LocalImportService {
         title: title,
         artist: artist,
         album: Value(album),
-        artworkUrl: Value(requested.artworkUrl),
+        artworkUrl: Value(artworkPath),
         localPath: finalFile.path,
         sha256: digest,
         codec: const Value('FLAC'),
@@ -104,6 +129,19 @@ class LocalImportService {
         channels: Value(metadata.channels),
         durationSeconds: Value(metadata.durationSeconds),
         fileSize: bytes.length,
+        year: Value(year),
+        trackNumber: Value(trackNumber),
+        discNumber: Value(discNumber),
+        genre: Value(genre),
+        bpm: Value(bpm),
+        key: Value(key),
+        isrc: Value(isrc),
+        copyright: Value(copyright),
+        replayGain: Value(replayGain),
+        peak: Value(peak),
+        version: Value(version),
+        audioQualityLabel: const Value('verified'),
+        vibrantColor: Value(requested.vibrantColor),
       ),
     );
     return TrackSummary(
@@ -113,11 +151,24 @@ class LocalImportService {
       title: title,
       artist: artist,
       album: album,
-      artworkUrl: requested.artworkUrl,
+      artworkUrl: artworkPath,
       durationSeconds: metadata.durationSeconds,
       explicit: requested.explicit,
       quality: quality,
       localPath: finalFile.path,
+      fileSize: bytes.length,
+      year: year,
+      trackNumber: trackNumber,
+      discNumber: discNumber,
+      genre: genre,
+      bpm: bpm,
+      key: key,
+      isrc: isrc,
+      copyright: copyright,
+      replayGain: replayGain,
+      peak: peak,
+      version: version,
+      vibrantColor: requested.vibrantColor,
     );
   }
 

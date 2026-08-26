@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/track.dart';
 import '../../services/audio_engine.dart';
 import '../../services/download_service.dart';
+import '../../widgets/track_artwork.dart';
 
 class PlayerPanel extends ConsumerWidget {
   const PlayerPanel({super.key, this.track});
@@ -12,8 +13,10 @@ class PlayerPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playback = ref.watch(audioEngineProvider);
-    final transfer = ref.watch(downloadServiceProvider);
     final current = playback.track ?? track;
+    final transfer = current != null
+        ? ref.watch(downloadServiceProvider).forTrack(current.id)
+        : null;
     if (current == null) {
       return const Center(
         child: Padding(
@@ -43,24 +46,61 @@ class PlayerPanel extends ConsumerWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
           child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _LargeArtwork(track: current),
-                const SizedBox(height: 26),
-                Text(
-                  current.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360, maxHeight: 360),
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: TrackArtwork(
+                      artworkUrl: current.highResArtworkUrl ?? current.artworkUrl,
+                      borderRadius: BorderRadius.circular(14),
+                      iconSize: 72,
+                      highRes: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (current.explicit) ...[
+                      const _ExplicitBadge(),
+                      const SizedBox(width: 8),
+                    ],
+                    Flexible(
+                      child: Text(
+                        current.displayTitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   current.artist,
-                  style: Theme.of(context).textTheme.bodyLarge,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
                 ),
-                const SizedBox(height: 24),
+                if (current.album != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    current.albumWithYear ?? current.album!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
                 Slider(
                   value: progress,
                   onChanged: playback.duration == Duration.zero
@@ -76,7 +116,7 @@ class PlayerPanel extends ConsumerWidget {
                     Text(_time(playback.duration)),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -110,7 +150,7 @@ class PlayerPanel extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 24),
                 const Divider(),
                 const SizedBox(height: 18),
                 _Reading(
@@ -120,13 +160,94 @@ class PlayerPanel extends ConsumerWidget {
                       ? Icons.verified_outlined
                       : Icons.high_quality_outlined,
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 _Reading(
                   label: 'OUTPUT',
                   value: playback.outputLabel,
                   icon: Icons.speaker_outlined,
                 ),
-                if (transfer.trackId == current.id &&
+                if (current.quality.channelsDisplay != null ||
+                    current.quality.bitrateDisplay != null) ...[
+                  const SizedBox(height: 12),
+                  _Reading(
+                    label: 'AUDIO STREAM',
+                    value: [
+                      current.quality.codec ?? 'FLAC',
+                      if (current.quality.channelsDisplay != null)
+                        current.quality.channelsDisplay!,
+                      if (current.quality.bitrateDisplay != null)
+                        current.quality.bitrateDisplay!,
+                    ].join(' · '),
+                    icon: Icons.graphic_eq_outlined,
+                  ),
+                ],
+                if (current.musicalKeyDisplay != null || current.tempoDisplay != null) ...[
+                  const SizedBox(height: 12),
+                  _Reading(
+                    label: 'ACOUSTIC PROPERTIES',
+                    value: [
+                      if (current.musicalKeyDisplay != null)
+                        'Key: ${current.musicalKeyDisplay}',
+                      if (current.tempoDisplay != null)
+                        'Tempo: ${current.tempoDisplay}',
+                    ].join('  ·  '),
+                    icon: Icons.music_note_outlined,
+                  ),
+                ],
+                if (current.replayGain != null || current.peak != null) ...[
+                  const SizedBox(height: 12),
+                  _Reading(
+                    label: 'LEVELS & GAIN',
+                    value: [
+                      if (current.replayGain != null)
+                        'Gain: ${current.replayGain! > 0 ? '+' : ''}${current.replayGain!.toStringAsFixed(1)} dB',
+                      if (current.peak != null)
+                        'Peak: ${(current.peak! * 100).toStringAsFixed(1)}%',
+                    ].join('  ·  '),
+                    icon: Icons.tune_outlined,
+                  ),
+                ],
+                if (current.formattedTrackNumber != null || current.genre != null) ...[
+                  const SizedBox(height: 12),
+                  _Reading(
+                    label: 'CATALOG INFO',
+                    value: [
+                      if (current.formattedTrackNumber != null)
+                        current.formattedTrackNumber!,
+                      if (current.genre != null && current.genre!.isNotEmpty)
+                        current.genre!,
+                    ].join('  ·  '),
+                    icon: Icons.tag_outlined,
+                  ),
+                ],
+                if (current.isrc != null && current.isrc!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _Reading(
+                    label: 'ISRC IDENTIFIER',
+                    value: current.isrc!,
+                    icon: Icons.fingerprint_outlined,
+                  ),
+                ],
+                if (current.copyright != null && current.copyright!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _Reading(
+                    label: 'COPYRIGHT / RELEASE',
+                    value: current.copyright!,
+                    icon: Icons.copyright_outlined,
+                  ),
+                ],
+                if (current.isLocal && current.formattedFileSize != null) ...[
+                  const SizedBox(height: 12),
+                  _Reading(
+                    label: 'LOCAL ARCHIVE',
+                    value: [
+                      current.formattedFileSize!,
+                      'FLAC lossless',
+                    ].join('  ·  '),
+                    icon: Icons.inventory_2_outlined,
+                  ),
+                ],
+                if (transfer != null &&
                     _isActivePhase(transfer.phase)) ...[
                   const SizedBox(height: 22),
                   LinearProgressIndicator(
@@ -141,12 +262,13 @@ class PlayerPanel extends ConsumerWidget {
                           : _phase(transfer.phase),
                     ),
                   ),
-                ] else if (transfer.trackId == current.id &&
+                ] else if (transfer != null &&
                     transfer.phase == 'FAILED') ...[
                   const SizedBox(height: 22),
                   _Reading(
                     label: 'SOURCE UNAVAILABLE',
-                    value: transfer.error ?? 'This track could not be downloaded. Try another result.',
+                    value: transfer.error ??
+                        'This track could not be downloaded. Try another result.',
                     icon: Icons.block_outlined,
                   ),
                 ],
@@ -197,11 +319,13 @@ class MiniPlayer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playback = ref.watch(audioEngineProvider);
-    final transfer = ref.watch(downloadServiceProvider);
     final track = playback.track;
+    final transfer = track != null
+        ? ref.watch(downloadServiceProvider).forTrack(track.id)
+        : null;
     if (track == null) return const SizedBox.shrink();
     final acquiring =
-        transfer.trackId == track.id &&
+        transfer != null &&
         PlayerPanel._isActivePhase(transfer.phase);
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainer,
@@ -211,28 +335,50 @@ class MiniPlayer extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const SizedBox(width: 18),
+                const SizedBox(width: 14),
+                TrackArtwork(
+                  artworkUrl: track.artworkUrl,
+                  size: 46,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        track.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
+                      Row(
+                        children: [
+                          if (track.explicit) ...[
+                            const _ExplicitBadge(),
+                            const SizedBox(width: 5),
+                          ],
+                          Expanded(
+                            child: Text(
+                              track.displayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         acquiring
                             ? '${PlayerPanel._phase(transfer.phase)} ${PlayerPanel._percent(transfer.progress)}'
-                            : track.artist,
+                            : '${track.artist}${track.album != null ? ' · ${track.album}' : ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 IconButton(
                   tooltip: playback.playing ? 'Pause' : 'Play',
                   onPressed: track.isLocal
@@ -242,6 +388,7 @@ class MiniPlayer extends ConsumerWidget {
                     playback.playing
                         ? Icons.pause_rounded
                         : Icons.play_arrow_rounded,
+                    size: 32,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -262,28 +409,25 @@ class MiniPlayer extends ConsumerWidget {
   }
 }
 
-class _LargeArtwork extends StatelessWidget {
-  const _LargeArtwork({required this.track});
-  final TrackSummary track;
+class _ExplicitBadge extends StatelessWidget {
+  const _ExplicitBadge();
+
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: track.artworkUrl == null
-            ? ColoredBox(
-                color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                child: const Icon(Icons.album, size: 90),
-              )
-            : Image.network(
-                track.artworkUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => ColoredBox(
-                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                  child: const Icon(Icons.album, size: 90),
-                ),
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.outlineVariant,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        'E',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: Theme.of(context).colorScheme.onSurface,
+          height: 1.1,
+        ),
       ),
     );
   }
@@ -301,17 +445,28 @@ class _Reading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Icon(icon, color: Theme.of(context).colorScheme.primary),
+      Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
       const SizedBox(width: 12),
       Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
             const SizedBox(height: 2),
             Text(
               value,
-              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),

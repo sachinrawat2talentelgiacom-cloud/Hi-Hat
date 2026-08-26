@@ -130,28 +130,127 @@ class ProviderSearchService {
       .toList(growable: false);
 
   static TrackSummary _mapTrack(Map<String, dynamic> item, String instance) {
-    final artistValue =
-        item['artist'] ?? ((item['artists'] as List?)?.firstOrNull);
     final albumValue = item['album'];
-    final artist = artistValue is Map ? artistValue['name'] : artistValue;
     final album = albumValue is Map ? albumValue['title'] : albumValue;
-    final cover = albumValue is Map ? albumValue['cover'] : null;
-    final quality = (item['audioQuality'] ?? '').toString().toUpperCase();
+    final vibrantColor =
+        albumValue is Map ? albumValue['vibrantColor']?.toString() : null;
+    final artist = _extractArtist(item);
+    final artworkUrl = _resolveArtworkUrl(item, instance);
+    final year = _extractYear(item);
+    final key = _extractKey(item);
+    final quality = _extractQuality(item);
+
     return TrackSummary(
       id: 'monochrome:${item['id']}',
       provider: 'monochrome',
       providerTrackId: item['id'].toString(),
       title: (item['title'] ?? 'Unknown track').toString(),
-      artist: (artist ?? 'Unknown artist').toString(),
+      artist: artist,
       album: album?.toString(),
-      artworkUrl: cover == null ? null : '$instance/cover/?id=$cover&size=640',
+      artworkUrl: artworkUrl,
       durationSeconds: (item['duration'] as num?)?.toDouble(),
       explicit: item['explicit'] == true,
-      quality: AudioQuality(
-        codec: quality.contains('LOSSLESS') ? 'FLAC' : null,
-        lossless: quality.contains('LOSSLESS'),
-        label: quality.isEmpty ? null : quality,
-      ),
+      quality: quality,
+      year: year,
+      trackNumber: (item['trackNumber'] as num?)?.toInt(),
+      discNumber:
+          (item['volumeNumber'] as num? ?? item['discNumber'] as num?)?.toInt(),
+      bpm: (item['bpm'] as num?)?.round(),
+      key: key,
+      isrc: item['isrc']?.toString(),
+      copyright: item['copyright']?.toString(),
+      replayGain: (item['replayGain'] as num?)?.toDouble(),
+      peak: (item['peak'] as num?)?.toDouble(),
+      version: item['version']?.toString(),
+      vibrantColor: vibrantColor,
+    );
+  }
+
+  static String _extractArtist(Map<String, dynamic> item) {
+    if (item['artists'] is List && (item['artists'] as List).isNotEmpty) {
+      final names = (item['artists'] as List)
+          .map((a) => a is Map ? a['name']?.toString() : a?.toString())
+          .whereType<String>()
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+      if (names.isNotEmpty) return names.join(', ');
+    }
+    final artistValue = item['artist'];
+    if (artistValue is Map) {
+      return artistValue['name']?.toString() ?? 'Unknown artist';
+    }
+    if (artistValue != null && artistValue.toString().trim().isNotEmpty) {
+      return artistValue.toString().trim();
+    }
+    return 'Unknown artist';
+  }
+
+  static String? _resolveArtworkUrl(
+    Map<String, dynamic> item,
+    String instance,
+  ) {
+    final albumValue = item['album'];
+    final cover = (albumValue is Map ? albumValue['cover'] : null) ??
+        item['cover'] ??
+        item['picture'] ??
+        (item['artist'] is Map ? item['artist']['picture'] : null);
+    if (cover == null) return null;
+    final coverStr = cover.toString().trim();
+    if (coverStr.isEmpty) return null;
+    if (coverStr.startsWith('http://') || coverStr.startsWith('https://')) {
+      return coverStr;
+    }
+    final cleanUuid = coverStr.replaceAll('-', '/');
+    return 'https://resources.tidal.com/images/$cleanUuid/640x640.jpg';
+  }
+
+  static String? _extractYear(Map<String, dynamic> item) {
+    if (item['year'] != null && item['year'].toString().trim().isNotEmpty) {
+      return item['year'].toString().trim();
+    }
+    if (item['releaseDate'] != null) {
+      final match =
+          RegExp(r'\b(19\d{2}|20\d{2})\b').firstMatch(item['releaseDate'].toString());
+      if (match != null) return match.group(1);
+    }
+    if (item['streamStartDate'] != null) {
+      final match =
+          RegExp(r'\b(19\d{2}|20\d{2})\b').firstMatch(item['streamStartDate'].toString());
+      if (match != null) return match.group(1);
+    }
+    if (item['copyright'] != null) {
+      final match =
+          RegExp(r'\b(19\d{2}|20\d{2})\b').firstMatch(item['copyright'].toString());
+      if (match != null) return match.group(1);
+    }
+    return null;
+  }
+
+  static String? _extractKey(Map<String, dynamic> item) {
+    final key = item['key']?.toString();
+    final scale = item['keyScale']?.toString();
+    if (key == null || key.isEmpty) return null;
+    if (scale != null && scale.isNotEmpty) {
+      final titleScale = scale.length > 1
+          ? '${scale[0].toUpperCase()}${scale.substring(1).toLowerCase()}'
+          : scale;
+      return '$key $titleScale';
+    }
+    return key;
+  }
+
+  static AudioQuality _extractQuality(Map<String, dynamic> item) {
+    final qualityStr = (item['audioQuality'] ?? '').toString().toUpperCase();
+    final modes = item['audioModes'] is List
+        ? (item['audioModes'] as List).map((e) => e.toString()).toList()
+        : const <String>[];
+    final isLossless =
+        qualityStr.contains('LOSSLESS') || qualityStr.contains('HI_RES');
+    return AudioQuality(
+      codec: isLossless ? 'FLAC' : null,
+      lossless: isLossless,
+      label: qualityStr.isEmpty ? null : qualityStr,
+      audioModes: modes,
     );
   }
 }

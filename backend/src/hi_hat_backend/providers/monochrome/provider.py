@@ -485,14 +485,50 @@ class MonochromeProvider(MusicProvider):
 
     @staticmethod
     def _map_track(item: dict[str, Any], instance: str) -> TrackCandidate:
+        import re
+
         track_id = str(item.get("id", ""))
-        artist = item.get("artist") or next(iter(item.get("artists") or []), {})
+        artists_list = item.get("artists")
+        if isinstance(artists_list, list) and artists_list:
+            names = [
+                a.get("name") if isinstance(a, dict) else str(a)
+                for a in artists_list
+                if (a.get("name") if isinstance(a, dict) else str(a))
+            ]
+            artist_name = ", ".join(names) if names else None
+        else:
+            artist = item.get("artist") or {}
+            artist_name = (
+                artist.get("name") if isinstance(artist, dict) else str(artist) if artist else None
+            )
         album = item.get("album") or {}
-        artist_name = artist.get("name") if isinstance(artist, dict) else str(artist)
-        album_name = album.get("title") if isinstance(album, dict) else str(album)
-        cover = album.get("cover") if isinstance(album, dict) else None
+        album_name = (
+            album.get("title") if isinstance(album, dict) else str(album) if album else None
+        )
+        cover = album.get("cover") if isinstance(album, dict) else item.get("cover")
+        vibrant_color = album.get("vibrantColor") if isinstance(album, dict) else None
         artwork = f"/v1/artwork/{cover}" if cover else None
         quality_name = str(item.get("audioQuality") or "").upper()
+
+        year = None
+        for date_key in ("year", "releaseDate", "streamStartDate", "copyright"):
+            val = item.get(date_key)
+            if val:
+                match = re.search(r"\b(19\d{2}|20\d{2})\b", str(val))
+                if match:
+                    year = match.group(1)
+                    break
+
+        key = item.get("key")
+        key_scale = item.get("keyScale")
+        musical_key = (
+            f"{key} {str(key_scale).title()}"
+            if key and key_scale
+            else str(key)
+            if key
+            else None
+        )
+
         return TrackCandidate(
             id=f"monochrome:{track_id}",
             provider="monochrome",
@@ -508,6 +544,17 @@ class MonochromeProvider(MusicProvider):
                 lossless="LOSSLESS" in quality_name,
                 label=quality_name or None,
             ),
+            year=year,
+            track_number=item.get("trackNumber"),
+            disc_number=item.get("volumeNumber") or item.get("discNumber"),
+            bpm=item.get("bpm"),
+            key=musical_key,
+            isrc=item.get("isrc"),
+            copyright=item.get("copyright"),
+            replay_gain=item.get("replayGain"),
+            peak=item.get("peak"),
+            version=item.get("version"),
+            vibrant_color=vibrant_color,
         )
 
     @staticmethod

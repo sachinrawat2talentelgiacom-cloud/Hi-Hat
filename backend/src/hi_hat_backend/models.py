@@ -27,6 +27,18 @@ class TrackCandidate(BaseModel):
     duration_seconds: float | None = None
     explicit: bool = False
     available_quality: AudioQuality | None = None
+    year: str | None = None
+    track_number: int | None = None
+    disc_number: int | None = None
+    genre: str | None = None
+    bpm: int | None = None
+    key: str | None = None
+    isrc: str | None = None
+    copyright: str | None = None
+    replay_gain: float | None = None
+    peak: float | None = None
+    version: str | None = None
+    vibrant_color: str | None = None
 
 
 class ProviderHealth(BaseModel):

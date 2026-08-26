@@ -185,6 +185,138 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<String> year = GeneratedColumn<String>(
+    'year',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trackNumberMeta = const VerificationMeta(
+    'trackNumber',
+  );
+  @override
+  late final GeneratedColumn<int> trackNumber = GeneratedColumn<int>(
+    'track_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _discNumberMeta = const VerificationMeta(
+    'discNumber',
+  );
+  @override
+  late final GeneratedColumn<int> discNumber = GeneratedColumn<int>(
+    'disc_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _genreMeta = const VerificationMeta('genre');
+  @override
+  late final GeneratedColumn<String> genre = GeneratedColumn<String>(
+    'genre',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bpmMeta = const VerificationMeta('bpm');
+  @override
+  late final GeneratedColumn<int> bpm = GeneratedColumn<int>(
+    'bpm',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isrcMeta = const VerificationMeta('isrc');
+  @override
+  late final GeneratedColumn<String> isrc = GeneratedColumn<String>(
+    'isrc',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _copyrightMeta = const VerificationMeta(
+    'copyright',
+  );
+  @override
+  late final GeneratedColumn<String> copyright = GeneratedColumn<String>(
+    'copyright',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _replayGainMeta = const VerificationMeta(
+    'replayGain',
+  );
+  @override
+  late final GeneratedColumn<double> replayGain = GeneratedColumn<double>(
+    'replay_gain',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _peakMeta = const VerificationMeta('peak');
+  @override
+  late final GeneratedColumn<double> peak = GeneratedColumn<double>(
+    'peak',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<String> version = GeneratedColumn<String>(
+    'version',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audioQualityLabelMeta = const VerificationMeta(
+    'audioQualityLabel',
+  );
+  @override
+  late final GeneratedColumn<String> audioQualityLabel =
+      GeneratedColumn<String>(
+        'audio_quality_label',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _vibrantColorMeta = const VerificationMeta(
+    'vibrantColor',
+  );
+  @override
+  late final GeneratedColumn<String> vibrantColor = GeneratedColumn<String>(
+    'vibrant_color',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -204,6 +336,19 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
     fileSize,
     downloadedAt,
     validatedAt,
+    year,
+    trackNumber,
+    discNumber,
+    genre,
+    bpm,
+    key,
+    isrc,
+    copyright,
+    replayGain,
+    peak,
+    version,
+    audioQualityLabel,
+    vibrantColor,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -344,6 +489,93 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
         ),
       );
     }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    }
+    if (data.containsKey('track_number')) {
+      context.handle(
+        _trackNumberMeta,
+        trackNumber.isAcceptableOrUnknown(
+          data['track_number']!,
+          _trackNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('disc_number')) {
+      context.handle(
+        _discNumberMeta,
+        discNumber.isAcceptableOrUnknown(data['disc_number']!, _discNumberMeta),
+      );
+    }
+    if (data.containsKey('genre')) {
+      context.handle(
+        _genreMeta,
+        genre.isAcceptableOrUnknown(data['genre']!, _genreMeta),
+      );
+    }
+    if (data.containsKey('bpm')) {
+      context.handle(
+        _bpmMeta,
+        bpm.isAcceptableOrUnknown(data['bpm']!, _bpmMeta),
+      );
+    }
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    }
+    if (data.containsKey('isrc')) {
+      context.handle(
+        _isrcMeta,
+        isrc.isAcceptableOrUnknown(data['isrc']!, _isrcMeta),
+      );
+    }
+    if (data.containsKey('copyright')) {
+      context.handle(
+        _copyrightMeta,
+        copyright.isAcceptableOrUnknown(data['copyright']!, _copyrightMeta),
+      );
+    }
+    if (data.containsKey('replay_gain')) {
+      context.handle(
+        _replayGainMeta,
+        replayGain.isAcceptableOrUnknown(data['replay_gain']!, _replayGainMeta),
+      );
+    }
+    if (data.containsKey('peak')) {
+      context.handle(
+        _peakMeta,
+        peak.isAcceptableOrUnknown(data['peak']!, _peakMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('audio_quality_label')) {
+      context.handle(
+        _audioQualityLabelMeta,
+        audioQualityLabel.isAcceptableOrUnknown(
+          data['audio_quality_label']!,
+          _audioQualityLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('vibrant_color')) {
+      context.handle(
+        _vibrantColorMeta,
+        vibrantColor.isAcceptableOrUnknown(
+          data['vibrant_color']!,
+          _vibrantColorMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -421,6 +653,58 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}validated_at'],
       )!,
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}year'],
+      ),
+      trackNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}track_number'],
+      ),
+      discNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}disc_number'],
+      ),
+      genre: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}genre'],
+      ),
+      bpm: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bpm'],
+      ),
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      ),
+      isrc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}isrc'],
+      ),
+      copyright: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}copyright'],
+      ),
+      replayGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain'],
+      ),
+      peak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}peak'],
+      ),
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}version'],
+      ),
+      audioQualityLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_quality_label'],
+      ),
+      vibrantColor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vibrant_color'],
+      ),
     );
   }
 
@@ -448,6 +732,19 @@ class Track extends DataClass implements Insertable<Track> {
   final int fileSize;
   final DateTime downloadedAt;
   final DateTime validatedAt;
+  final String? year;
+  final int? trackNumber;
+  final int? discNumber;
+  final String? genre;
+  final int? bpm;
+  final String? key;
+  final String? isrc;
+  final String? copyright;
+  final double? replayGain;
+  final double? peak;
+  final String? version;
+  final String? audioQualityLabel;
+  final String? vibrantColor;
   const Track({
     required this.id,
     required this.provider,
@@ -466,6 +763,19 @@ class Track extends DataClass implements Insertable<Track> {
     required this.fileSize,
     required this.downloadedAt,
     required this.validatedAt,
+    this.year,
+    this.trackNumber,
+    this.discNumber,
+    this.genre,
+    this.bpm,
+    this.key,
+    this.isrc,
+    this.copyright,
+    this.replayGain,
+    this.peak,
+    this.version,
+    this.audioQualityLabel,
+    this.vibrantColor,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -501,6 +811,45 @@ class Track extends DataClass implements Insertable<Track> {
     map['file_size'] = Variable<int>(fileSize);
     map['downloaded_at'] = Variable<DateTime>(downloadedAt);
     map['validated_at'] = Variable<DateTime>(validatedAt);
+    if (!nullToAbsent || year != null) {
+      map['year'] = Variable<String>(year);
+    }
+    if (!nullToAbsent || trackNumber != null) {
+      map['track_number'] = Variable<int>(trackNumber);
+    }
+    if (!nullToAbsent || discNumber != null) {
+      map['disc_number'] = Variable<int>(discNumber);
+    }
+    if (!nullToAbsent || genre != null) {
+      map['genre'] = Variable<String>(genre);
+    }
+    if (!nullToAbsent || bpm != null) {
+      map['bpm'] = Variable<int>(bpm);
+    }
+    if (!nullToAbsent || key != null) {
+      map['key'] = Variable<String>(key);
+    }
+    if (!nullToAbsent || isrc != null) {
+      map['isrc'] = Variable<String>(isrc);
+    }
+    if (!nullToAbsent || copyright != null) {
+      map['copyright'] = Variable<String>(copyright);
+    }
+    if (!nullToAbsent || replayGain != null) {
+      map['replay_gain'] = Variable<double>(replayGain);
+    }
+    if (!nullToAbsent || peak != null) {
+      map['peak'] = Variable<double>(peak);
+    }
+    if (!nullToAbsent || version != null) {
+      map['version'] = Variable<String>(version);
+    }
+    if (!nullToAbsent || audioQualityLabel != null) {
+      map['audio_quality_label'] = Variable<String>(audioQualityLabel);
+    }
+    if (!nullToAbsent || vibrantColor != null) {
+      map['vibrant_color'] = Variable<String>(vibrantColor);
+    }
     return map;
   }
 
@@ -537,6 +886,35 @@ class Track extends DataClass implements Insertable<Track> {
       fileSize: Value(fileSize),
       downloadedAt: Value(downloadedAt),
       validatedAt: Value(validatedAt),
+      year: year == null && nullToAbsent ? const Value.absent() : Value(year),
+      trackNumber: trackNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackNumber),
+      discNumber: discNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(discNumber),
+      genre: genre == null && nullToAbsent
+          ? const Value.absent()
+          : Value(genre),
+      bpm: bpm == null && nullToAbsent ? const Value.absent() : Value(bpm),
+      key: key == null && nullToAbsent ? const Value.absent() : Value(key),
+      isrc: isrc == null && nullToAbsent ? const Value.absent() : Value(isrc),
+      copyright: copyright == null && nullToAbsent
+          ? const Value.absent()
+          : Value(copyright),
+      replayGain: replayGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGain),
+      peak: peak == null && nullToAbsent ? const Value.absent() : Value(peak),
+      version: version == null && nullToAbsent
+          ? const Value.absent()
+          : Value(version),
+      audioQualityLabel: audioQualityLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioQualityLabel),
+      vibrantColor: vibrantColor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vibrantColor),
     );
   }
 
@@ -563,6 +941,21 @@ class Track extends DataClass implements Insertable<Track> {
       fileSize: serializer.fromJson<int>(json['fileSize']),
       downloadedAt: serializer.fromJson<DateTime>(json['downloadedAt']),
       validatedAt: serializer.fromJson<DateTime>(json['validatedAt']),
+      year: serializer.fromJson<String?>(json['year']),
+      trackNumber: serializer.fromJson<int?>(json['trackNumber']),
+      discNumber: serializer.fromJson<int?>(json['discNumber']),
+      genre: serializer.fromJson<String?>(json['genre']),
+      bpm: serializer.fromJson<int?>(json['bpm']),
+      key: serializer.fromJson<String?>(json['key']),
+      isrc: serializer.fromJson<String?>(json['isrc']),
+      copyright: serializer.fromJson<String?>(json['copyright']),
+      replayGain: serializer.fromJson<double?>(json['replayGain']),
+      peak: serializer.fromJson<double?>(json['peak']),
+      version: serializer.fromJson<String?>(json['version']),
+      audioQualityLabel: serializer.fromJson<String?>(
+        json['audioQualityLabel'],
+      ),
+      vibrantColor: serializer.fromJson<String?>(json['vibrantColor']),
     );
   }
   @override
@@ -586,6 +979,19 @@ class Track extends DataClass implements Insertable<Track> {
       'fileSize': serializer.toJson<int>(fileSize),
       'downloadedAt': serializer.toJson<DateTime>(downloadedAt),
       'validatedAt': serializer.toJson<DateTime>(validatedAt),
+      'year': serializer.toJson<String?>(year),
+      'trackNumber': serializer.toJson<int?>(trackNumber),
+      'discNumber': serializer.toJson<int?>(discNumber),
+      'genre': serializer.toJson<String?>(genre),
+      'bpm': serializer.toJson<int?>(bpm),
+      'key': serializer.toJson<String?>(key),
+      'isrc': serializer.toJson<String?>(isrc),
+      'copyright': serializer.toJson<String?>(copyright),
+      'replayGain': serializer.toJson<double?>(replayGain),
+      'peak': serializer.toJson<double?>(peak),
+      'version': serializer.toJson<String?>(version),
+      'audioQualityLabel': serializer.toJson<String?>(audioQualityLabel),
+      'vibrantColor': serializer.toJson<String?>(vibrantColor),
     };
   }
 
@@ -607,6 +1013,19 @@ class Track extends DataClass implements Insertable<Track> {
     int? fileSize,
     DateTime? downloadedAt,
     DateTime? validatedAt,
+    Value<String?> year = const Value.absent(),
+    Value<int?> trackNumber = const Value.absent(),
+    Value<int?> discNumber = const Value.absent(),
+    Value<String?> genre = const Value.absent(),
+    Value<int?> bpm = const Value.absent(),
+    Value<String?> key = const Value.absent(),
+    Value<String?> isrc = const Value.absent(),
+    Value<String?> copyright = const Value.absent(),
+    Value<double?> replayGain = const Value.absent(),
+    Value<double?> peak = const Value.absent(),
+    Value<String?> version = const Value.absent(),
+    Value<String?> audioQualityLabel = const Value.absent(),
+    Value<String?> vibrantColor = const Value.absent(),
   }) => Track(
     id: id ?? this.id,
     provider: provider ?? this.provider,
@@ -627,6 +1046,21 @@ class Track extends DataClass implements Insertable<Track> {
     fileSize: fileSize ?? this.fileSize,
     downloadedAt: downloadedAt ?? this.downloadedAt,
     validatedAt: validatedAt ?? this.validatedAt,
+    year: year.present ? year.value : this.year,
+    trackNumber: trackNumber.present ? trackNumber.value : this.trackNumber,
+    discNumber: discNumber.present ? discNumber.value : this.discNumber,
+    genre: genre.present ? genre.value : this.genre,
+    bpm: bpm.present ? bpm.value : this.bpm,
+    key: key.present ? key.value : this.key,
+    isrc: isrc.present ? isrc.value : this.isrc,
+    copyright: copyright.present ? copyright.value : this.copyright,
+    replayGain: replayGain.present ? replayGain.value : this.replayGain,
+    peak: peak.present ? peak.value : this.peak,
+    version: version.present ? version.value : this.version,
+    audioQualityLabel: audioQualityLabel.present
+        ? audioQualityLabel.value
+        : this.audioQualityLabel,
+    vibrantColor: vibrantColor.present ? vibrantColor.value : this.vibrantColor,
   );
   Track copyWithCompanion(TracksCompanion data) {
     return Track(
@@ -659,6 +1093,29 @@ class Track extends DataClass implements Insertable<Track> {
       validatedAt: data.validatedAt.present
           ? data.validatedAt.value
           : this.validatedAt,
+      year: data.year.present ? data.year.value : this.year,
+      trackNumber: data.trackNumber.present
+          ? data.trackNumber.value
+          : this.trackNumber,
+      discNumber: data.discNumber.present
+          ? data.discNumber.value
+          : this.discNumber,
+      genre: data.genre.present ? data.genre.value : this.genre,
+      bpm: data.bpm.present ? data.bpm.value : this.bpm,
+      key: data.key.present ? data.key.value : this.key,
+      isrc: data.isrc.present ? data.isrc.value : this.isrc,
+      copyright: data.copyright.present ? data.copyright.value : this.copyright,
+      replayGain: data.replayGain.present
+          ? data.replayGain.value
+          : this.replayGain,
+      peak: data.peak.present ? data.peak.value : this.peak,
+      version: data.version.present ? data.version.value : this.version,
+      audioQualityLabel: data.audioQualityLabel.present
+          ? data.audioQualityLabel.value
+          : this.audioQualityLabel,
+      vibrantColor: data.vibrantColor.present
+          ? data.vibrantColor.value
+          : this.vibrantColor,
     );
   }
 
@@ -681,13 +1138,26 @@ class Track extends DataClass implements Insertable<Track> {
           ..write('durationSeconds: $durationSeconds, ')
           ..write('fileSize: $fileSize, ')
           ..write('downloadedAt: $downloadedAt, ')
-          ..write('validatedAt: $validatedAt')
+          ..write('validatedAt: $validatedAt, ')
+          ..write('year: $year, ')
+          ..write('trackNumber: $trackNumber, ')
+          ..write('discNumber: $discNumber, ')
+          ..write('genre: $genre, ')
+          ..write('bpm: $bpm, ')
+          ..write('key: $key, ')
+          ..write('isrc: $isrc, ')
+          ..write('copyright: $copyright, ')
+          ..write('replayGain: $replayGain, ')
+          ..write('peak: $peak, ')
+          ..write('version: $version, ')
+          ..write('audioQualityLabel: $audioQualityLabel, ')
+          ..write('vibrantColor: $vibrantColor')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     provider,
     providerTrackId,
@@ -705,7 +1175,20 @@ class Track extends DataClass implements Insertable<Track> {
     fileSize,
     downloadedAt,
     validatedAt,
-  );
+    year,
+    trackNumber,
+    discNumber,
+    genre,
+    bpm,
+    key,
+    isrc,
+    copyright,
+    replayGain,
+    peak,
+    version,
+    audioQualityLabel,
+    vibrantColor,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -726,7 +1209,20 @@ class Track extends DataClass implements Insertable<Track> {
           other.durationSeconds == this.durationSeconds &&
           other.fileSize == this.fileSize &&
           other.downloadedAt == this.downloadedAt &&
-          other.validatedAt == this.validatedAt);
+          other.validatedAt == this.validatedAt &&
+          other.year == this.year &&
+          other.trackNumber == this.trackNumber &&
+          other.discNumber == this.discNumber &&
+          other.genre == this.genre &&
+          other.bpm == this.bpm &&
+          other.key == this.key &&
+          other.isrc == this.isrc &&
+          other.copyright == this.copyright &&
+          other.replayGain == this.replayGain &&
+          other.peak == this.peak &&
+          other.version == this.version &&
+          other.audioQualityLabel == this.audioQualityLabel &&
+          other.vibrantColor == this.vibrantColor);
 }
 
 class TracksCompanion extends UpdateCompanion<Track> {
@@ -747,6 +1243,19 @@ class TracksCompanion extends UpdateCompanion<Track> {
   final Value<int> fileSize;
   final Value<DateTime> downloadedAt;
   final Value<DateTime> validatedAt;
+  final Value<String?> year;
+  final Value<int?> trackNumber;
+  final Value<int?> discNumber;
+  final Value<String?> genre;
+  final Value<int?> bpm;
+  final Value<String?> key;
+  final Value<String?> isrc;
+  final Value<String?> copyright;
+  final Value<double?> replayGain;
+  final Value<double?> peak;
+  final Value<String?> version;
+  final Value<String?> audioQualityLabel;
+  final Value<String?> vibrantColor;
   final Value<int> rowid;
   const TracksCompanion({
     this.id = const Value.absent(),
@@ -766,6 +1275,19 @@ class TracksCompanion extends UpdateCompanion<Track> {
     this.fileSize = const Value.absent(),
     this.downloadedAt = const Value.absent(),
     this.validatedAt = const Value.absent(),
+    this.year = const Value.absent(),
+    this.trackNumber = const Value.absent(),
+    this.discNumber = const Value.absent(),
+    this.genre = const Value.absent(),
+    this.bpm = const Value.absent(),
+    this.key = const Value.absent(),
+    this.isrc = const Value.absent(),
+    this.copyright = const Value.absent(),
+    this.replayGain = const Value.absent(),
+    this.peak = const Value.absent(),
+    this.version = const Value.absent(),
+    this.audioQualityLabel = const Value.absent(),
+    this.vibrantColor = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TracksCompanion.insert({
@@ -786,6 +1308,19 @@ class TracksCompanion extends UpdateCompanion<Track> {
     required int fileSize,
     this.downloadedAt = const Value.absent(),
     this.validatedAt = const Value.absent(),
+    this.year = const Value.absent(),
+    this.trackNumber = const Value.absent(),
+    this.discNumber = const Value.absent(),
+    this.genre = const Value.absent(),
+    this.bpm = const Value.absent(),
+    this.key = const Value.absent(),
+    this.isrc = const Value.absent(),
+    this.copyright = const Value.absent(),
+    this.replayGain = const Value.absent(),
+    this.peak = const Value.absent(),
+    this.version = const Value.absent(),
+    this.audioQualityLabel = const Value.absent(),
+    this.vibrantColor = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        provider = Value(provider),
@@ -813,6 +1348,19 @@ class TracksCompanion extends UpdateCompanion<Track> {
     Expression<int>? fileSize,
     Expression<DateTime>? downloadedAt,
     Expression<DateTime>? validatedAt,
+    Expression<String>? year,
+    Expression<int>? trackNumber,
+    Expression<int>? discNumber,
+    Expression<String>? genre,
+    Expression<int>? bpm,
+    Expression<String>? key,
+    Expression<String>? isrc,
+    Expression<String>? copyright,
+    Expression<double>? replayGain,
+    Expression<double>? peak,
+    Expression<String>? version,
+    Expression<String>? audioQualityLabel,
+    Expression<String>? vibrantColor,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -833,6 +1381,19 @@ class TracksCompanion extends UpdateCompanion<Track> {
       if (fileSize != null) 'file_size': fileSize,
       if (downloadedAt != null) 'downloaded_at': downloadedAt,
       if (validatedAt != null) 'validated_at': validatedAt,
+      if (year != null) 'year': year,
+      if (trackNumber != null) 'track_number': trackNumber,
+      if (discNumber != null) 'disc_number': discNumber,
+      if (genre != null) 'genre': genre,
+      if (bpm != null) 'bpm': bpm,
+      if (key != null) 'key': key,
+      if (isrc != null) 'isrc': isrc,
+      if (copyright != null) 'copyright': copyright,
+      if (replayGain != null) 'replay_gain': replayGain,
+      if (peak != null) 'peak': peak,
+      if (version != null) 'version': version,
+      if (audioQualityLabel != null) 'audio_quality_label': audioQualityLabel,
+      if (vibrantColor != null) 'vibrant_color': vibrantColor,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -855,6 +1416,19 @@ class TracksCompanion extends UpdateCompanion<Track> {
     Value<int>? fileSize,
     Value<DateTime>? downloadedAt,
     Value<DateTime>? validatedAt,
+    Value<String?>? year,
+    Value<int?>? trackNumber,
+    Value<int?>? discNumber,
+    Value<String?>? genre,
+    Value<int?>? bpm,
+    Value<String?>? key,
+    Value<String?>? isrc,
+    Value<String?>? copyright,
+    Value<double?>? replayGain,
+    Value<double?>? peak,
+    Value<String?>? version,
+    Value<String?>? audioQualityLabel,
+    Value<String?>? vibrantColor,
     Value<int>? rowid,
   }) {
     return TracksCompanion(
@@ -875,6 +1449,19 @@ class TracksCompanion extends UpdateCompanion<Track> {
       fileSize: fileSize ?? this.fileSize,
       downloadedAt: downloadedAt ?? this.downloadedAt,
       validatedAt: validatedAt ?? this.validatedAt,
+      year: year ?? this.year,
+      trackNumber: trackNumber ?? this.trackNumber,
+      discNumber: discNumber ?? this.discNumber,
+      genre: genre ?? this.genre,
+      bpm: bpm ?? this.bpm,
+      key: key ?? this.key,
+      isrc: isrc ?? this.isrc,
+      copyright: copyright ?? this.copyright,
+      replayGain: replayGain ?? this.replayGain,
+      peak: peak ?? this.peak,
+      version: version ?? this.version,
+      audioQualityLabel: audioQualityLabel ?? this.audioQualityLabel,
+      vibrantColor: vibrantColor ?? this.vibrantColor,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -933,6 +1520,45 @@ class TracksCompanion extends UpdateCompanion<Track> {
     if (validatedAt.present) {
       map['validated_at'] = Variable<DateTime>(validatedAt.value);
     }
+    if (year.present) {
+      map['year'] = Variable<String>(year.value);
+    }
+    if (trackNumber.present) {
+      map['track_number'] = Variable<int>(trackNumber.value);
+    }
+    if (discNumber.present) {
+      map['disc_number'] = Variable<int>(discNumber.value);
+    }
+    if (genre.present) {
+      map['genre'] = Variable<String>(genre.value);
+    }
+    if (bpm.present) {
+      map['bpm'] = Variable<int>(bpm.value);
+    }
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (isrc.present) {
+      map['isrc'] = Variable<String>(isrc.value);
+    }
+    if (copyright.present) {
+      map['copyright'] = Variable<String>(copyright.value);
+    }
+    if (replayGain.present) {
+      map['replay_gain'] = Variable<double>(replayGain.value);
+    }
+    if (peak.present) {
+      map['peak'] = Variable<double>(peak.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<String>(version.value);
+    }
+    if (audioQualityLabel.present) {
+      map['audio_quality_label'] = Variable<String>(audioQualityLabel.value);
+    }
+    if (vibrantColor.present) {
+      map['vibrant_color'] = Variable<String>(vibrantColor.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -959,6 +1585,19 @@ class TracksCompanion extends UpdateCompanion<Track> {
           ..write('fileSize: $fileSize, ')
           ..write('downloadedAt: $downloadedAt, ')
           ..write('validatedAt: $validatedAt, ')
+          ..write('year: $year, ')
+          ..write('trackNumber: $trackNumber, ')
+          ..write('discNumber: $discNumber, ')
+          ..write('genre: $genre, ')
+          ..write('bpm: $bpm, ')
+          ..write('key: $key, ')
+          ..write('isrc: $isrc, ')
+          ..write('copyright: $copyright, ')
+          ..write('replayGain: $replayGain, ')
+          ..write('peak: $peak, ')
+          ..write('version: $version, ')
+          ..write('audioQualityLabel: $audioQualityLabel, ')
+          ..write('vibrantColor: $vibrantColor, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -994,6 +1633,19 @@ typedef $$TracksTableCreateCompanionBuilder = TracksCompanion Function({
   required int fileSize,
   Value<DateTime> downloadedAt,
   Value<DateTime> validatedAt,
+  Value<String?> year,
+  Value<int?> trackNumber,
+  Value<int?> discNumber,
+  Value<String?> genre,
+  Value<int?> bpm,
+  Value<String?> key,
+  Value<String?> isrc,
+  Value<String?> copyright,
+  Value<double?> replayGain,
+  Value<double?> peak,
+  Value<String?> version,
+  Value<String?> audioQualityLabel,
+  Value<String?> vibrantColor,
   Value<int> rowid,
 });
 typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
@@ -1014,6 +1666,19 @@ typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
   Value<int> fileSize,
   Value<DateTime> downloadedAt,
   Value<DateTime> validatedAt,
+  Value<String?> year,
+  Value<int?> trackNumber,
+  Value<int?> discNumber,
+  Value<String?> genre,
+  Value<int?> bpm,
+  Value<String?> key,
+  Value<String?> isrc,
+  Value<String?> copyright,
+  Value<double?> replayGain,
+  Value<double?> peak,
+  Value<String?> version,
+  Value<String?> audioQualityLabel,
+  Value<String?> vibrantColor,
   Value<int> rowid,
 });
 
@@ -1108,6 +1773,71 @@ class $$TracksTableFilterComposer
 
   ColumnFilters<DateTime> get validatedAt => $composableBuilder(
     column: $table.validatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get trackNumber => $composableBuilder(
+    column: $table.trackNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get discNumber => $composableBuilder(
+    column: $table.discNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get genre => $composableBuilder(
+    column: $table.genre,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bpm => $composableBuilder(
+    column: $table.bpm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get isrc => $composableBuilder(
+    column: $table.isrc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get copyright => $composableBuilder(
+    column: $table.copyright,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGain => $composableBuilder(
+    column: $table.replayGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get peak => $composableBuilder(
+    column: $table.peak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audioQualityLabel => $composableBuilder(
+    column: $table.audioQualityLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get vibrantColor => $composableBuilder(
+    column: $table.vibrantColor,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1205,6 +1935,71 @@ class $$TracksTableOrderingComposer
     column: $table.validatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get trackNumber => $composableBuilder(
+    column: $table.trackNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get discNumber => $composableBuilder(
+    column: $table.discNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get genre => $composableBuilder(
+    column: $table.genre,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bpm => $composableBuilder(
+    column: $table.bpm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get isrc => $composableBuilder(
+    column: $table.isrc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get copyright => $composableBuilder(
+    column: $table.copyright,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGain => $composableBuilder(
+    column: $table.replayGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get peak => $composableBuilder(
+    column: $table.peak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get audioQualityLabel => $composableBuilder(
+    column: $table.audioQualityLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get vibrantColor => $composableBuilder(
+    column: $table.vibrantColor,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TracksTableAnnotationComposer
@@ -1278,6 +2073,55 @@ class $$TracksTableAnnotationComposer
     column: $table.validatedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<int> get trackNumber => $composableBuilder(
+    column: $table.trackNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get discNumber => $composableBuilder(
+    column: $table.discNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get genre =>
+      $composableBuilder(column: $table.genre, builder: (column) => column);
+
+  GeneratedColumn<int> get bpm =>
+      $composableBuilder(column: $table.bpm, builder: (column) => column);
+
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get isrc =>
+      $composableBuilder(column: $table.isrc, builder: (column) => column);
+
+  GeneratedColumn<String> get copyright =>
+      $composableBuilder(column: $table.copyright, builder: (column) => column);
+
+  GeneratedColumn<double> get replayGain => $composableBuilder(
+    column: $table.replayGain,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get peak =>
+      $composableBuilder(column: $table.peak, builder: (column) => column);
+
+  GeneratedColumn<String> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<String> get audioQualityLabel => $composableBuilder(
+    column: $table.audioQualityLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get vibrantColor => $composableBuilder(
+    column: $table.vibrantColor,
+    builder: (column) => column,
+  );
 }
 
 class $$TracksTableTableManager
@@ -1325,6 +2169,19 @@ class $$TracksTableTableManager
                 Value<int> fileSize = const Value.absent(),
                 Value<DateTime> downloadedAt = const Value.absent(),
                 Value<DateTime> validatedAt = const Value.absent(),
+                Value<String?> year = const Value.absent(),
+                Value<int?> trackNumber = const Value.absent(),
+                Value<int?> discNumber = const Value.absent(),
+                Value<String?> genre = const Value.absent(),
+                Value<int?> bpm = const Value.absent(),
+                Value<String?> key = const Value.absent(),
+                Value<String?> isrc = const Value.absent(),
+                Value<String?> copyright = const Value.absent(),
+                Value<double?> replayGain = const Value.absent(),
+                Value<double?> peak = const Value.absent(),
+                Value<String?> version = const Value.absent(),
+                Value<String?> audioQualityLabel = const Value.absent(),
+                Value<String?> vibrantColor = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TracksCompanion(
                 id: id,
@@ -1344,6 +2201,19 @@ class $$TracksTableTableManager
                 fileSize: fileSize,
                 downloadedAt: downloadedAt,
                 validatedAt: validatedAt,
+                year: year,
+                trackNumber: trackNumber,
+                discNumber: discNumber,
+                genre: genre,
+                bpm: bpm,
+                key: key,
+                isrc: isrc,
+                copyright: copyright,
+                replayGain: replayGain,
+                peak: peak,
+                version: version,
+                audioQualityLabel: audioQualityLabel,
+                vibrantColor: vibrantColor,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1365,6 +2235,19 @@ class $$TracksTableTableManager
                 required int fileSize,
                 Value<DateTime> downloadedAt = const Value.absent(),
                 Value<DateTime> validatedAt = const Value.absent(),
+                Value<String?> year = const Value.absent(),
+                Value<int?> trackNumber = const Value.absent(),
+                Value<int?> discNumber = const Value.absent(),
+                Value<String?> genre = const Value.absent(),
+                Value<int?> bpm = const Value.absent(),
+                Value<String?> key = const Value.absent(),
+                Value<String?> isrc = const Value.absent(),
+                Value<String?> copyright = const Value.absent(),
+                Value<double?> replayGain = const Value.absent(),
+                Value<double?> peak = const Value.absent(),
+                Value<String?> version = const Value.absent(),
+                Value<String?> audioQualityLabel = const Value.absent(),
+                Value<String?> vibrantColor = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TracksCompanion.insert(
                 id: id,
@@ -1384,6 +2267,19 @@ class $$TracksTableTableManager
                 fileSize: fileSize,
                 downloadedAt: downloadedAt,
                 validatedAt: validatedAt,
+                year: year,
+                trackNumber: trackNumber,
+                discNumber: discNumber,
+                genre: genre,
+                bpm: bpm,
+                key: key,
+                isrc: isrc,
+                copyright: copyright,
+                replayGain: replayGain,
+                peak: peak,
+                version: version,
+                audioQualityLabel: audioQualityLabel,
+                vibrantColor: vibrantColor,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
