@@ -135,7 +135,11 @@ class PlayerPanel extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(_phase(transfer.phase)),
+                    child: Text(
+                      transfer.progress > 0
+                          ? '${_phase(transfer.phase)}  ${_percent(transfer.progress)}'
+                          : _phase(transfer.phase),
+                    ),
                   ),
                 ] else if (transfer.trackId == current.id &&
                     transfer.phase == 'FAILED') ...[
@@ -161,11 +165,18 @@ class PlayerPanel extends ConsumerWidget {
     return '$minutes:$seconds';
   }
 
+  static String _percent(double value) => '${(value * 100).round()}%';
+
   static String _phase(String? value) => switch (value) {
     'RESOLVING' => 'Resolving the highest lossless source…',
+    'OPENING_PROVIDER' => 'Opening the provider in the background…',
+    'AUTH_REQUIRED' => 'Provider verification required…',
+    'MATCHING_TRACK' => 'Matching the exact track…',
+    'STARTING_DOWNLOAD' => 'Starting lossless preparation…',
+    'PREPARING_AUDIO' => 'Preparing lossless audio…',
     'DOWNLOADING' => 'Downloading FLAC locally…',
     'VERIFYING' => 'Verifying the FLAC…',
-    'TRANSFERRING' => 'Saving to this device…',
+    'FINALIZING' => 'Saving to your library…',
     _ => 'Preparing…',
   };
 
@@ -174,6 +185,7 @@ class PlayerPanel extends ConsumerWidget {
     'AUTH_REQUIRED',
     'MATCHING_TRACK',
     'STARTING_DOWNLOAD',
+    'PREPARING_AUDIO',
     'DOWNLOADING',
     'VERIFYING',
     'FINALIZING',
@@ -185,46 +197,64 @@ class MiniPlayer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playback = ref.watch(audioEngineProvider);
+    final transfer = ref.watch(downloadServiceProvider);
     final track = playback.track;
     if (track == null) return const SizedBox.shrink();
+    final acquiring =
+        transfer.trackId == track.id &&
+        PlayerPanel._isActivePhase(transfer.phase);
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainer,
       child: SizedBox(
         height: 72,
-        child: Row(
+        child: Stack(
           children: [
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: [
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        track.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        acquiring
+                            ? '${PlayerPanel._phase(transfer.phase)} ${PlayerPanel._percent(transfer.progress)}'
+                            : track.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  Text(
-                    track.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                ),
+                IconButton(
+                  tooltip: playback.playing ? 'Pause' : 'Play',
+                  onPressed: track.isLocal
+                      ? () => ref.read(audioEngineProvider.notifier).toggle()
+                      : null,
+                  icon: Icon(
+                    playback.playing
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 10),
+              ],
             ),
-            IconButton(
-              tooltip: playback.playing ? 'Pause' : 'Play',
-              onPressed: track.isLocal
-                  ? () => ref.read(audioEngineProvider.notifier).toggle()
-                  : null,
-              icon: Icon(
-                playback.playing
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
+            if (acquiring)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: LinearProgressIndicator(
+                  minHeight: 2,
+                  value: transfer.progress > 0 ? transfer.progress : null,
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
           ],
         ),
       ),

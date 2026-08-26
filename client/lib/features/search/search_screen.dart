@@ -185,6 +185,7 @@ class TrackResultTile extends ConsumerWidget {
           'AUTH_REQUIRED',
           'MATCHING_TRACK',
           'STARTING_DOWNLOAD',
+          'PREPARING_AUDIO',
           'DOWNLOADING',
           'VERIFYING',
           'FINALIZING',

@@ -47,6 +47,7 @@ class DownloadService extends StateNotifier<TransferState> {
     'AUTH_REQUIRED',
     'MATCHING_TRACK',
     'STARTING_DOWNLOAD',
+    'PREPARING_AUDIO',
     'DOWNLOADING',
     'VERIFYING',
     'FINALIZING',

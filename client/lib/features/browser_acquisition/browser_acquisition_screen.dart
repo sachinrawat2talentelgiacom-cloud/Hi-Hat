@@ -6,15 +6,18 @@
 // FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../diagnostics/browser_acquisition_log.dart';
 import '../../models/track.dart';
 import '../../services/download_service.dart';
 import '../../services/local_import_service.dart';
@@ -55,35 +58,75 @@ class _BrowserAcquisitionScreenState
   bool scanRunning = false;
   bool showProviderBrowser = false;
   bool debugVisible = false;
+  bool debugPreferenceLoaded = false;
+  bool disposing = false;
+  double lastReportedProgress = 0;
+  double? providerDurationSeconds;
   String? expectedFilename;
   int? expectedLength;
   File? controlledDownloadFile;
+  TrackSummary? completedTrack;
   Set<String> existingDownloads = {};
   late Future<void> initialization;
   InAppWebViewController? webViewController;
+  BrowserAcquisitionLog? acquisitionLog;
+
+  String get searchQuery => <String?>[
+    widget.track.title,
+    widget.track.artist,
+    widget.track.album,
+  ].whereType<String>().where((part) => part.trim().isNotEmpty).join(' ');
 
   String get trackUrl =>
-      'https://monochrome.tf/track/${Uri.encodeComponent(widget.track.providerTrackId)}';
+      'https://monochrome.tf/search/${Uri.encodeComponent(searchQuery)}';
+
+  String? _safeUrl(Object? value) {
+    if (value == null) return null;
+    final parsed = Uri.tryParse(value.toString());
+    return parsed?.replace(query: '', fragment: '').toString() ??
+        '<invalid-url>';
+  }
 
   @override
   void initState() {
     super.initState();
     initialization = _snapshotDownloads();
-    SharedPreferences.getInstance().then((preferences) {
+    SharedPreferences.getInstance().then((preferences) async {
       if (!mounted) return;
       setState(() {
         debugVisible =
-            preferences.getBool('providerBrowserDebugVisible') ?? false;
+            preferences.getBool(providerBrowserDebugPreferenceKey) ?? false;
         showProviderBrowser = debugVisible;
+        debugPreferenceLoaded = true;
       });
+      if (debugVisible) {
+        acquisitionLog = BrowserAcquisitionLog(
+          trackId: widget.track.providerTrackId,
+          onEntry: (_) {
+            if (mounted && !disposing) setState(() {});
+          },
+        );
+        await acquisitionLog!.start();
+        await acquisitionLog!.event('DEBUG_MODE_ENABLED', {
+          'provider': widget.track.provider,
+          'title': widget.track.title,
+          'artist': widget.track.artist,
+          'album': widget.track.album,
+          'searchQuery': searchQuery,
+          'targetUrl': trackUrl,
+          'platform': Platform.operatingSystem,
+        });
+      }
     });
   }
 
   @override
   void dispose() {
+    disposing = true;
     monitor?.cancel();
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
+    acquisitionLog?.close();
     super.dispose();
   }
 
@@ -98,12 +141,20 @@ class _BrowserAcquisitionScreenState
   }
 
   Future<void> _onLoaded(InAppWebViewController controller) async {
+    await acquisitionLog?.event('AUTOMATION_TICK', {
+      'downloadRequested': downloadRequested,
+      'automationRunning': automationRunning,
+    });
     if (downloadRequested || automationRunning) return;
     final current = await controller.getUrl();
-    final expectedPath = '/track/${widget.track.providerTrackId}';
+    await acquisitionLog?.event('PAGE_URL_READ', {
+      'url': _safeUrl(current),
+      'expectedUrl': trackUrl,
+    });
+    final expectedPath = Uri.parse(trackUrl).path;
     if (current?.scheme != 'https' ||
         current?.host != 'monochrome.tf' ||
-        current?.path != expectedPath) {
+        current?.path.toLowerCase() != expectedPath.toLowerCase()) {
       if (mounted) {
         setState(() {
           phase = BrowserAcquisitionPhase.waitingForAuthorization;
@@ -111,28 +162,105 @@ class _BrowserAcquisitionScreenState
         });
         ref
             .read(downloadServiceProvider.notifier)
-            .update(widget.track.id, 'AUTH_REQUIRED');
+            .update(widget.track.id, 'AUTH_REQUIRED', progress: 0.04);
       }
+      await acquisitionLog?.event('AUTH_OR_NAVIGATION_REQUIRED', {
+        'url': _safeUrl(current),
+        'expectedPath': expectedPath,
+      });
       return;
     }
     automationRunning = true;
     try {
       final result = await controller.evaluateJavascript(
-        source: '''
+        source:
+            '''
           (() => {
             const verification = document.querySelector(
               'iframe[src*="turnstile"], input[name="cf-turnstile-response"], #challenge-form'
             );
-            if (verification) return 'authorization';
-            const button = document.querySelector('#download-track-btn');
-            if (!button || button.offsetParent === null) return 'loading';
-            button.click();
-            return 'started';
+            if (verification && verification.offsetParent !== null) {
+              return 'authorization';
+            }
+
+            const trackId = ${jsonEncode(widget.track.providerTrackId)};
+            const wantedTitle = ${jsonEncode(widget.track.title.toLowerCase())};
+            const wantedArtist = ${jsonEncode(widget.track.artist.toLowerCase())};
+            const normalize = (value) => (value || '')
+              .toLowerCase()
+              .replace(/\\s+/g, ' ')
+              .trim();
+            const visible = (element) => element && element.offsetParent !== null;
+
+            let target = document.querySelector(
+              `[data-track-id="\${CSS.escape(trackId)}"], ` +
+              `[data-id="\${CSS.escape(trackId)}"], ` +
+              `a[href*="/track/\${CSS.escape(trackId)}"]`
+            );
+            if (!visible(target)) target = null;
+
+            if (!target) {
+              const artistLabels = [...document.querySelectorAll(
+                'span, p, a, strong, small, div'
+              )].filter((element) => {
+                if (!visible(element)) return false;
+                const text = normalize(element.innerText || element.textContent);
+                if (text === wantedArtist) return true;
+                if (!text.startsWith(wantedArtist)) return false;
+                return text.length <= wantedArtist.length + 40;
+              });
+
+              const candidates = [];
+              for (const label of artistLabels) {
+                let element = label;
+                for (let depth = 0; element && depth < 7; depth += 1) {
+                  const text = normalize(element.innerText || element.textContent);
+                  const rect = element.getBoundingClientRect();
+                  const compactRow = rect.height >= 32 && rect.height <= 140 &&
+                    rect.width >= 240 && text.length <= 240;
+                  if (compactRow && text.includes(wantedTitle) &&
+                      text.includes(wantedArtist) &&
+                      !text.startsWith('search results for')) {
+                    candidates.push({element, text, area: rect.width * rect.height});
+                  }
+                  element = element.parentElement;
+                }
+              }
+              candidates.sort((a, b) => a.area - b.area || a.text.length - b.text.length);
+              target = candidates[0]?.element || null;
+            }
+
+            if (!target) return 'loading:matching-row-not-found';
+            const row = target.closest(
+              'li, [role="row"], [data-type="track"], .track, .track-item, .media-item'
+            ) || target;
+            row.scrollIntoView({block: 'center'});
+            const rect = row.getBoundingClientRect();
+            row.dispatchEvent(new MouseEvent('contextmenu', {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+              button: 2,
+              buttons: 2,
+              clientX: rect.left + Math.min(rect.width / 2, 240),
+              clientY: rect.top + Math.min(rect.height / 2, 24),
+            }));
+
+            const contextDownload = document.querySelector(
+              '#context-menu li[data-action="download"], li[data-action="download"]'
+            );
+            if (!contextDownload) return 'loading:context-download-not-found';
+            contextDownload.click();
+            return `started:context-download:\${normalize(row.innerText).slice(0, 160)}`;
           })();
         ''',
       );
       if (!mounted) return;
       final state = result?.toString().replaceAll('"', '');
+      await acquisitionLog?.event('AUTOMATION_RESULT', {
+        'rawResult': result?.toString(),
+        'interpretedState': state,
+      });
       if (state == 'authorization') {
         setState(() {
           phase = BrowserAcquisitionPhase.waitingForAuthorization;
@@ -140,8 +268,11 @@ class _BrowserAcquisitionScreenState
         });
         ref
             .read(downloadServiceProvider.notifier)
-            .update(widget.track.id, 'AUTH_REQUIRED');
-      } else if (state == 'started') {
+            .update(widget.track.id, 'AUTH_REQUIRED', progress: 0.04);
+      } else if (state?.startsWith('started:') ?? false) {
+        await acquisitionLog?.event('DOWNLOAD_BUTTON_CLICKED', {
+          'action': state,
+        });
         downloadRequested = true;
         setState(() {
           phase = BrowserAcquisitionPhase.startingDownload;
@@ -149,9 +280,9 @@ class _BrowserAcquisitionScreenState
         });
         ref
             .read(downloadServiceProvider.notifier)
-            .update(widget.track.id, 'STARTING_DOWNLOAD');
+            .update(widget.track.id, 'STARTING_DOWNLOAD', progress: 0.1);
         downloadStartDeadline?.cancel();
-        downloadStartDeadline = Timer(const Duration(seconds: 20), () {
+        downloadStartDeadline = Timer(const Duration(minutes: 2), () {
           if (!mounted || phase != BrowserAcquisitionPhase.startingDownload) {
             return;
           }
@@ -164,14 +295,22 @@ class _BrowserAcquisitionScreenState
           ref
               .read(downloadServiceProvider.notifier)
               .fail(widget.track.id, 'DOWNLOAD_NOT_STARTED: $message');
+          acquisitionLog?.event('DOWNLOAD_CALLBACK_TIMEOUT', {
+            'timeoutSeconds': 120,
+            'lastKnownUrl': trackUrl,
+          });
         });
       } else {
         setState(() => phase = BrowserAcquisitionPhase.matchingTrack);
         ref
             .read(downloadServiceProvider.notifier)
-            .update(widget.track.id, 'MATCHING_TRACK');
+            .update(widget.track.id, 'MATCHING_TRACK', progress: 0.06);
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      await acquisitionLog?.event('AUTOMATION_ERROR', {
+        'error': error.toString(),
+        'stackTrace': stackTrace.toString(),
+      });
       if (mounted) {
         setState(() {
           phase = BrowserAcquisitionPhase.failed;
@@ -201,14 +340,24 @@ class _BrowserAcquisitionScreenState
   Future<DownloadStartResponse?> _onDownloadStarted(
     DownloadStartRequest request,
   ) async {
+    // This callback is authoritative. Stop every pending automation retry even
+    // if a platform returned an unexpected JavaScript result representation.
+    downloadRequested = true;
+    automationTimer?.cancel();
     downloadStartDeadline?.cancel();
+    await acquisitionLog?.event('DOWNLOAD_CALLBACK_RECEIVED', {
+      'url': _safeUrl(request.url),
+      'suggestedFilename': request.suggestedFilename,
+      'contentLength': request.contentLength,
+      'mimeType': request.mimeType,
+    });
     setState(() {
       phase = BrowserAcquisitionPhase.downloading;
       detail = request.suggestedFilename;
     });
     ref
         .read(downloadServiceProvider.notifier)
-        .update(widget.track.id, 'DOWNLOADING');
+        .update(widget.track.id, 'DOWNLOADING', progress: 0.88);
     expectedFilename = request.suggestedFilename;
     expectedLength = request.contentLength > 0 ? request.contentLength : null;
     monitor?.cancel();
@@ -225,6 +374,9 @@ class _BrowserAcquisitionScreenState
     final incoming = File(p.join(folder.path, 'incoming.flac'));
     if (await incoming.exists()) await incoming.delete();
     controlledDownloadFile = incoming;
+    await acquisitionLog?.event('DOWNLOAD_DESTINATION_ASSIGNED', {
+      'path': incoming.path,
+    });
     return DownloadStartResponse(handled: true, resultFilePath: incoming.path);
   }
 
@@ -275,10 +427,22 @@ class _BrowserAcquisitionScreenState
       candidates.sort(
         (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
       );
-      if (candidates.isEmpty) return;
+      if (candidates.isEmpty) {
+        await acquisitionLog?.event('FILE_SCAN_NO_CANDIDATE', {
+          'controlledPath': controlled?.path,
+          'expectedFilename': expectedFilename,
+        });
+        return;
+      }
       final file = candidates.first;
       if (file.lastModifiedSync().isBefore(started)) return;
       final size = await file.length();
+      await acquisitionLog?.event('FILE_CANDIDATE_OBSERVED', {
+        'path': file.path,
+        'size': size,
+        'expectedLength': expectedLength,
+        'stableReads': stableReads,
+      });
       if (expectedLength != null && size != expectedLength) return;
       stableReads = size == previousSize ? stableReads + 1 : 0;
       previousSize = size;
@@ -292,10 +456,14 @@ class _BrowserAcquisitionScreenState
 
   Future<void> _finalize(File file) async {
     try {
+      await acquisitionLog?.event('IMPORT_STARTED', {
+        'path': file.path,
+        'size': await file.length(),
+      });
       setState(() => phase = BrowserAcquisitionPhase.verifying);
       ref
           .read(downloadServiceProvider.notifier)
-          .update(widget.track.id, 'VERIFYING');
+          .update(widget.track.id, 'VERIFYING', progress: 0.94);
       final local = await ref
           .read(localImportServiceProvider)
           .importForTrack(file, widget.track);
@@ -303,15 +471,20 @@ class _BrowserAcquisitionScreenState
       setState(() => phase = BrowserAcquisitionPhase.finalizing);
       ref
           .read(downloadServiceProvider.notifier)
-          .update(widget.track.id, 'FINALIZING');
+          .update(widget.track.id, 'FINALIZING', progress: 0.98);
       await Future<void>.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
       setState(() => phase = BrowserAcquisitionPhase.ready);
       ref.read(downloadServiceProvider.notifier).complete(widget.track.id);
+      await acquisitionLog?.event('ACQUISITION_COMPLETE', {
+        'localPath': local.localPath,
+      });
+      completedTrack = local;
       await Future<void>.delayed(const Duration(milliseconds: 350));
       if (!mounted) return;
       Navigator.of(context).pop(local);
     } catch (error) {
+      await acquisitionLog?.event('IMPORT_FAILED', {'error': error.toString()});
       if (!mounted) return;
       setState(() {
         phase = BrowserAcquisitionPhase.failed;
@@ -326,100 +499,253 @@ class _BrowserAcquisitionScreenState
     }
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.track.title, overflow: TextOverflow.ellipsis),
-      actions: [
-        IconButton(
-          tooltip: 'Cancel acquisition',
-          onPressed: () {
-            ref.read(downloadServiceProvider.notifier).cancel(widget.track.id);
-            Navigator.of(context).pop();
-          },
-          icon: const Icon(Icons.close),
-        ),
-      ],
+  void _onProviderConsole(ConsoleMessage message) {
+    acquisitionLog?.event('PAGE_CONSOLE', {
+      'level': message.messageLevel.toString(),
+      'message': message.message,
+    });
+    final durationMatch = RegExp(r'Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)')
+        .firstMatch(message.message);
+    if (durationMatch != null) {
+      providerDurationSeconds =
+          (int.parse(durationMatch.group(1)!) * 3600) +
+          (int.parse(durationMatch.group(2)!) * 60) +
+          double.parse(durationMatch.group(3)!);
+    }
+    final match = RegExp(r'time=(\d+):(\d+):(\d+(?:\.\d+)?)')
+        .firstMatch(message.message);
+    final duration = providerDurationSeconds ?? widget.track.durationSeconds;
+    if (match == null || duration == null || duration <= 0) return;
+    final elapsed =
+        (int.parse(match.group(1)!) * 3600) +
+        (int.parse(match.group(2)!) * 60) +
+        double.parse(match.group(3)!);
+    final conversionRatio = (elapsed / duration).clamp(0.0, 1.0);
+    final progress = 0.1 + (conversionRatio * 0.75);
+    if (progress - lastReportedProgress < 0.005 && progress < 0.85) return;
+    lastReportedProgress = progress;
+    ref
+        .read(downloadServiceProvider.notifier)
+        .update(widget.track.id, 'PREPARING_AUDIO', progress: progress);
+  }
+
+  Widget _buildProviderWebView() => InAppWebView(
+    initialUrlRequest: URLRequest(url: WebUri(trackUrl)),
+    initialSettings: InAppWebViewSettings(
+      javaScriptEnabled: true,
+      useOnDownloadStart: true,
+      mediaPlaybackRequiresUserGesture: true,
     ),
-    body: Column(
-      children: [
-        _AcquisitionStatus(
-          phase: phase,
-          detail: detail,
-          onRetry: phase == BrowserAcquisitionPhase.failed
-              ? () {
-                  setState(() {
-                    phase = BrowserAcquisitionPhase.openingSource;
-                    detail = null;
-                    downloadRequested = false;
-                  });
-                  webViewController?.reload();
-                }
-              : null,
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: FutureBuilder<void>(
-            future: initialization,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return Stack(
-                children: [
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Text(
-                        phase == BrowserAcquisitionPhase.waitingForAuthorization
-                            ? 'The provider browser is ready for verification.'
-                            : 'Hi Hat is acquiring this track in the background.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    right: showProviderBrowser ? 0 : null,
-                    bottom: showProviderBrowser ? 0 : null,
-                    width: showProviderBrowser ? null : 1,
-                    height: showProviderBrowser ? null : 1,
-                    child: IgnorePointer(
-                      ignoring: !showProviderBrowser,
-                      child: InAppWebView(
-                        initialUrlRequest: URLRequest(url: WebUri(trackUrl)),
-                        initialSettings: InAppWebViewSettings(
-                          javaScriptEnabled: true,
-                          useOnDownloadStart: true,
-                          mediaPlaybackRequiresUserGesture: true,
-                        ),
-                        onWebViewCreated: (controller) =>
-                            webViewController = controller,
-                        onLoadStop: (controller, _) => _onLoaded(controller),
-                        onReceivedError: (_, request, error) {
-                          if (request.isForMainFrame == false || !mounted) {
-                            return;
-                          }
-                          setState(() {
-                            phase = BrowserAcquisitionPhase.failed;
-                            detail = 'Monochrome could not be loaded. Check your connection and retry.';
-                          });
-                        },
-                        onDownloadStarting: (_, request) =>
-                            _onDownloadStarted(request),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+    onWebViewCreated: (controller) {
+      webViewController = controller;
+      acquisitionLog?.event('WEBVIEW_CREATED', {'url': trackUrl});
+    },
+    onLoadStart: (_, url) =>
+        acquisitionLog?.event('NAVIGATION_STARTED', {'url': _safeUrl(url)}),
+    onLoadStop: (controller, url) async {
+      await acquisitionLog?.event('NAVIGATION_FINISHED', {
+        'url': _safeUrl(url),
+      });
+      await _onLoaded(controller);
+    },
+    onProgressChanged: (_, progress) {
+      if (progress == 25 ||
+          progress == 50 ||
+          progress == 75 ||
+          progress == 100) {
+        acquisitionLog?.event('PAGE_PROGRESS', {'percent': progress});
+      }
+    },
+    onConsoleMessage: (_, message) => _onProviderConsole(message),
+    onReceivedError: (_, request, error) {
+      acquisitionLog?.event('WEB_RESOURCE_ERROR', {
+        'url': _safeUrl(request.url),
+        'mainFrame': request.isForMainFrame,
+        'type': error.type.toString(),
+        'description': error.description,
+      });
+      if (request.isForMainFrame == false || !mounted) return;
+      setState(() {
+        phase = BrowserAcquisitionPhase.failed;
+        detail =
+            'Monochrome could not be loaded. Check your connection and retry.';
+      });
+    },
+    onDownloadStarting: (_, request) => _onDownloadStarted(request),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    if (!debugPreferenceLoaded) return const SizedBox.shrink();
+    final browserMustBeVisible =
+        debugVisible ||
+        phase == BrowserAcquisitionPhase.waitingForAuthorization;
+    if (!browserMustBeVisible) {
+      return IgnorePointer(
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox.square(
+            dimension: 1,
+            child: FutureBuilder<void>(
+              future: initialization,
+              builder: (_, snapshot) =>
+                  snapshot.connectionState == ConnectionState.done
+                  ? _buildProviderWebView()
+                  : const SizedBox.shrink(),
+            ),
           ),
         ),
-      ],
-    ),
-  );
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.track.title, overflow: TextOverflow.ellipsis),
+        actions: [
+          if (debugVisible)
+            IconButton(
+              tooltip: 'Copy browser debug log',
+              onPressed: acquisitionLog == null
+                  ? null
+                  : () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: acquisitionLog!.entries.join('\n')),
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Browser debug log copied.'),
+                          ),
+                        );
+                      }
+                    },
+              icon: const Icon(Icons.bug_report_outlined),
+            ),
+          if (debugVisible && phase == BrowserAcquisitionPhase.ready)
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(completedTrack),
+              child: const Text('Done'),
+            ),
+          IconButton(
+            tooltip: 'Cancel acquisition',
+            onPressed: () {
+              ref
+                  .read(downloadServiceProvider.notifier)
+                  .cancel(widget.track.id);
+              Navigator.of(context).pop();
+            },
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _AcquisitionStatus(
+            phase: phase,
+            detail: detail,
+            onRetry: phase == BrowserAcquisitionPhase.failed
+                ? () {
+                    setState(() {
+                      phase = BrowserAcquisitionPhase.openingSource;
+                      detail = null;
+                      downloadRequested = false;
+                    });
+                    webViewController?.reload();
+                  }
+                : null,
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: FutureBuilder<void>(
+              future: initialization,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return Stack(
+                  children: [
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Text(
+                          phase ==
+                                  BrowserAcquisitionPhase
+                                      .waitingForAuthorization
+                              ? 'The provider browser is ready for verification.'
+                              : 'Hi Hat is acquiring this track in the background.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      right: showProviderBrowser ? 0 : null,
+                      bottom: showProviderBrowser ? 0 : null,
+                      width: showProviderBrowser ? null : 1,
+                      height: showProviderBrowser ? null : 1,
+                      child: IgnorePointer(
+                        ignoring: !showProviderBrowser,
+                        child: _buildProviderWebView(),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          if (debugVisible) _BrowserDebugStrip(log: acquisitionLog),
+        ],
+      ),
+    );
+  }
+}
+
+class _BrowserDebugStrip extends StatelessWidget {
+  const _BrowserDebugStrip({required this.log});
+
+  final BrowserAcquisitionLog? log;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = log?.entries ?? const <String>[];
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      child: Semantics(
+        liveRegion: true,
+        child: ListTile(
+          dense: true,
+          leading: const Icon(Icons.bug_report_outlined),
+          title: Text('Debug trace · ${entries.length} events'),
+          subtitle: Text(
+            entries.isEmpty ? 'Preparing log file…' : entries.last,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: IconButton(
+            tooltip: 'Copy complete trace',
+            onPressed: entries.isEmpty
+                ? null
+                : () async {
+                    await Clipboard.setData(
+                      ClipboardData(
+                        text: '${entries.join('\n')}\nLOG_FILE=${log?.path}',
+                      ),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Browser debug log copied.'),
+                        ),
+                      );
+                    }
+                  },
+            icon: const Icon(Icons.copy_all_outlined),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AcquisitionStatus extends StatelessWidget {

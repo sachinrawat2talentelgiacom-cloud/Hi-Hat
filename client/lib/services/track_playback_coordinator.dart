@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../diagnostics/browser_acquisition_log.dart';
 import '../features/browser_acquisition/browser_acquisition_screen.dart';
 import '../models/track.dart';
 import 'audio_engine.dart';
@@ -33,10 +35,25 @@ class TrackPlaybackCoordinator {
       _routeOpen = true;
       ref.read(downloadServiceProvider.notifier).begin(track.id);
       try {
+        final preferences = await SharedPreferences.getInstance();
+        final debugVisible =
+            preferences.getBool(providerBrowserDebugPreferenceKey) ?? false;
         local = await navigator.push<TrackSummary>(
-          MaterialPageRoute(
-            builder: (_) => BrowserAcquisitionScreen(track: track),
-            fullscreenDialog: true,
+          PageRouteBuilder<TrackSummary>(
+            opaque: debugVisible,
+            barrierColor: Colors.transparent,
+            transitionDuration: debugVisible
+                ? const Duration(milliseconds: 250)
+                : Duration.zero,
+            reverseTransitionDuration: debugVisible
+                ? const Duration(milliseconds: 200)
+                : Duration.zero,
+            pageBuilder: (_, animation, secondaryAnimation) =>
+                BrowserAcquisitionScreen(track: track),
+            transitionsBuilder: (_, animation, secondaryAnimation, child) =>
+                debugVisible
+                ? FadeTransition(opacity: animation, child: child)
+                : child,
           ),
         );
       } finally {

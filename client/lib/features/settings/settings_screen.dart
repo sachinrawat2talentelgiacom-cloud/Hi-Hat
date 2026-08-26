@@ -3,6 +3,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../diagnostics/browser_acquisition_log.dart';
+
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -60,14 +62,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: 12),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Show provider browser while acquiring'),
+              title: const Text('Browser debug mode'),
               subtitle: const Text(
-                'Diagnostic setting. Verification still appears whenever it is required.',
+                'Keep the provider browser visible and interactive, prevent automatic closing, and record a detailed acquisition log.',
               ),
               value: browserDebugVisible,
               onChanged: (value) async {
                 final preferences = await SharedPreferences.getInstance();
-                await preferences.setBool('providerBrowserDebugVisible', value);
+                await preferences.setBool(
+                  providerBrowserDebugPreferenceKey,
+                  value,
+                );
                 if (mounted) setState(() => browserDebugVisible = value);
               },
             ),
