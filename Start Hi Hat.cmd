@@ -6,5 +6,9 @@ if errorlevel 1 (
   echo.
   echo Hi Hat could not be started. See the message above.
   pause
+) else (
+  echo.
+  echo Hi Hat has closed. It is not running in the background.
+  echo Keep this window open and share any error shown above if the app closed unexpectedly.
+  pause
 )
-

@@ -1,19 +1,20 @@
 # Hi Hat
 
-Hi Hat is a minimal lossless music player for Android and Windows. Search goes through a provider-neutral FastAPI backend; playback begins only after a complete lossless file is downloaded, validated, and saved on the listening device.
+Hi Hat is a minimal lossless music player for Android and Windows. The Windows app runs as a single Flutter application: search, embedded browser acquisition, validation, the local library, and playback do not require FastAPI or Python at runtime. Playback currently begins after a complete lossless file is downloaded, validated, and saved on the listening device.
 
 ## One-click Windows launch
 
-Double-click `Start Hi Hat.cmd` in File Explorer. On its first run, the launcher installs missing prerequisites, creates the local configuration, prepares both projects, starts the backend, and opens the Windows app. Initial setup can take a while and may request administrator approval for Windows build tools. Later launches reuse the completed setup.
+Double-click `Start Hi Hat.cmd` in File Explorer. The launcher prepares Flutter dependencies and opens the Windows app. It does not start a backend console, Python process, or separate browser helper.
 
 ## Architecture
 
 - `client/` - Flutter application and local Drift library.
-- `backend/` - FastAPI service, generic provider contract, Monochrome adapter, acquisition, validation, and transfer endpoints.
+- `backend/` - legacy/reference FastAPI implementation retained during migration; not used by the Windows runtime.
+- `acquisition_helper/` - legacy/reference browser helper; not used by the Windows runtime.
 - `docs/ARCHITECTURE.md` - boundaries, request flow, and failure behavior.
 - `PRODUCT.md` - durable product requirements.
 
-The Flutter application never calls Monochrome. All provider-specific request shapes, parsing, instance failover, link resolution, retries, and provider errors live under `backend/src/hi_hat_backend/providers/monochrome/`.
+The Flutter application currently performs provider search directly and uses an embedded WebView2 surface for the provider's normal download flow. Provider browser state remains inside WebView2 and is not exported to application data.
 
 ## Backend setup
 

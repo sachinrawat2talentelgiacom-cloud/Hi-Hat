@@ -12,8 +12,11 @@ import 'flac_metadata.dart';
 import 'library_service.dart';
 
 class LocalImportService {
-  LocalImportService(this.ref);
-  final Ref ref;
+  LocalImportService(this.ref) : _database = null, _libraryRoot = null;
+  LocalImportService.forTesting(this._database, this._libraryRoot) : ref = null;
+  final Ref? ref;
+  final AppDatabase? _database;
+  final Future<Directory> Function()? _libraryRoot;
 
   Future<TrackSummary> importForTrack(
     File source,
@@ -36,7 +39,7 @@ class LocalImportService {
 
     final bytes = await source.readAsBytes();
     final digest = sha256.convert(bytes).toString();
-    final database = ref.read(databaseProvider);
+    final AppDatabase database = _database ?? ref!.read(databaseProvider);
     final duplicate = await database.findBySha256(digest);
     if (duplicate != null && await File(duplicate.localPath).exists()) {
       return requested.copyWith(
@@ -50,20 +53,21 @@ class LocalImportService {
       );
     }
 
-    final root = await getApplicationDocumentsDirectory();
+    final root =
+        await (_libraryRoot?.call() ?? getApplicationDocumentsDirectory());
+    final title = metadata.title ?? requested.title;
+    final artist = metadata.artist ?? requested.artist;
+    final album = metadata.album ?? requested.album;
     final folder = Directory(
       p.join(
         root.path,
         'Music',
-        safePathSegment(requested.artist),
-        safePathSegment(requested.album ?? 'Singles'),
+        safePathSegment(artist),
+        safePathSegment(album ?? 'Singles'),
       ),
     );
     await folder.create(recursive: true);
-    final finalPath = p.join(
-      folder.path,
-      '${safePathSegment(requested.title)}.flac',
-    );
+    final finalPath = p.join(folder.path, '${safePathSegment(title)}.flac');
     final partPath = '$finalPath.part';
     await File(partPath).writeAsBytes(bytes, flush: true);
     await FlacMetadataReader.read(File(partPath));
@@ -80,19 +84,33 @@ class LocalImportService {
         id: requested.id,
         provider: requested.provider,
         providerTrackId: requested.providerTrackId,
-        title: requested.title,
-        artist: requested.artist,
-        album: Value(requested.album),
+        title: title,
+        artist: artist,
+        album: Value(album),
         artworkUrl: Value(requested.artworkUrl),
         localPath: finalFile.path,
         sha256: digest,
         codec: const Value('FLAC'),
         bitDepth: Value(metadata.bitDepth),
         sampleRate: Value(metadata.sampleRate),
+        channels: Value(metadata.channels),
+        durationSeconds: Value(metadata.durationSeconds),
         fileSize: bytes.length,
       ),
     );
-    return requested.copyWith(localPath: finalFile.path, quality: quality);
+    return TrackSummary(
+      id: requested.id,
+      provider: requested.provider,
+      providerTrackId: requested.providerTrackId,
+      title: title,
+      artist: artist,
+      album: album,
+      artworkUrl: requested.artworkUrl,
+      durationSeconds: metadata.durationSeconds,
+      explicit: requested.explicit,
+      quality: quality,
+      localPath: finalFile.path,
+    );
   }
 
   static String safePathSegment(String value) =>

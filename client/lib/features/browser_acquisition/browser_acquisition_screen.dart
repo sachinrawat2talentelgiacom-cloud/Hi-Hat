@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -46,6 +47,7 @@ class _BrowserAcquisitionScreenState
   DateTime started = DateTime.now();
   Timer? monitor;
   Timer? automationTimer;
+  Timer? downloadStartDeadline;
   int stableReads = 0;
   int previousSize = -1;
   bool downloadRequested = false;
@@ -55,6 +57,7 @@ class _BrowserAcquisitionScreenState
   bool debugVisible = false;
   String? expectedFilename;
   int? expectedLength;
+  File? controlledDownloadFile;
   Set<String> existingDownloads = {};
   late Future<void> initialization;
   InAppWebViewController? webViewController;
@@ -66,7 +69,6 @@ class _BrowserAcquisitionScreenState
   void initState() {
     super.initState();
     initialization = _snapshotDownloads();
-    ref.read(downloadServiceProvider.notifier).begin(widget.track.id);
     SharedPreferences.getInstance().then((preferences) {
       if (!mounted) return;
       setState(() {
@@ -81,6 +83,7 @@ class _BrowserAcquisitionScreenState
   void dispose() {
     monitor?.cancel();
     automationTimer?.cancel();
+    downloadStartDeadline?.cancel();
     super.dispose();
   }
 
@@ -147,6 +150,21 @@ class _BrowserAcquisitionScreenState
         ref
             .read(downloadServiceProvider.notifier)
             .update(widget.track.id, 'STARTING_DOWNLOAD');
+        downloadStartDeadline?.cancel();
+        downloadStartDeadline = Timer(const Duration(seconds: 20), () {
+          if (!mounted || phase != BrowserAcquisitionPhase.startingDownload) {
+            return;
+          }
+          const message =
+              'The provider accepted Download, but no file transfer started.';
+          setState(() {
+            phase = BrowserAcquisitionPhase.failed;
+            detail = message;
+          });
+          ref
+              .read(downloadServiceProvider.notifier)
+              .fail(widget.track.id, 'DOWNLOAD_NOT_STARTED: $message');
+        });
       } else {
         setState(() => phase = BrowserAcquisitionPhase.matchingTrack);
         ref
@@ -180,7 +198,10 @@ class _BrowserAcquisitionScreenState
     }
   }
 
-  void _onDownloadStarted(DownloadStartRequest request) {
+  Future<DownloadStartResponse?> _onDownloadStarted(
+    DownloadStartRequest request,
+  ) async {
+    downloadStartDeadline?.cancel();
     setState(() {
       phase = BrowserAcquisitionPhase.downloading;
       detail = request.suggestedFilename;
@@ -195,30 +216,62 @@ class _BrowserAcquisitionScreenState
       const Duration(seconds: 1),
       (_) => _scanForCompletedFile(),
     );
+    if (!Platform.isWindows) return null;
+    final root = await getApplicationSupportDirectory();
+    final folder = Directory(
+      p.join(root.path, 'Acquisitions', widget.track.providerTrackId),
+    );
+    await folder.create(recursive: true);
+    final incoming = File(p.join(folder.path, 'incoming.flac'));
+    if (await incoming.exists()) await incoming.delete();
+    controlledDownloadFile = incoming;
+    return DownloadStartResponse(handled: true, resultFilePath: incoming.path);
   }
 
   Future<void> _scanForCompletedFile() async {
     if (scanRunning) return;
     scanRunning = true;
     try {
-      final folder = await getDownloadsDirectory();
-      if (folder == null || !await folder.exists()) return;
-      final candidates = await folder
-          .list()
-          .where((entry) => entry is File)
-          .cast<File>()
-          .where((file) {
-            final lower = file.path.toLowerCase();
-            final reportedName = expectedFilename;
-            final nameMatches =
-                reportedName == null ||
-                file.uri.pathSegments.last.toLowerCase() ==
-                    reportedName.toLowerCase();
-            return lower.endsWith('.flac') &&
-                nameMatches &&
-                !existingDownloads.contains(file.path);
-          })
-          .toList();
+      if (DateTime.now().difference(started) > const Duration(minutes: 3)) {
+        monitor?.cancel();
+        const message = 'The provider download exceeded the 3-minute deadline.';
+        if (mounted) {
+          setState(() {
+            phase = BrowserAcquisitionPhase.failed;
+            detail = message;
+          });
+          ref
+              .read(downloadServiceProvider.notifier)
+              .fail(widget.track.id, 'DOWNLOAD_TIMEOUT: $message');
+        }
+        return;
+      }
+      final controlled = controlledDownloadFile;
+      final candidates = <File>[];
+      if (controlled != null && await controlled.exists()) {
+        candidates.add(controlled);
+      } else {
+        final folder = await getDownloadsDirectory();
+        if (folder == null || !await folder.exists()) return;
+        candidates.addAll(
+          await folder
+              .list()
+              .where((entry) => entry is File)
+              .cast<File>()
+              .where((file) {
+                final lower = file.path.toLowerCase();
+                final reportedName = expectedFilename;
+                final nameMatches =
+                    reportedName == null ||
+                    file.uri.pathSegments.last.toLowerCase() ==
+                        reportedName.toLowerCase();
+                return lower.endsWith('.flac') &&
+                    nameMatches &&
+                    !existingDownloads.contains(file.path);
+              })
+              .toList(),
+        );
+      }
       candidates.sort(
         (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
       );
@@ -326,27 +379,37 @@ class _BrowserAcquisitionScreenState
                       ),
                     ),
                   ),
-                  Offstage(
-                    offstage: !showProviderBrowser,
-                    child: InAppWebView(
-                      initialUrlRequest: URLRequest(url: WebUri(trackUrl)),
-                      initialSettings: InAppWebViewSettings(
-                        javaScriptEnabled: true,
-                        useOnDownloadStart: true,
-                        mediaPlaybackRequiresUserGesture: true,
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    right: showProviderBrowser ? 0 : null,
+                    bottom: showProviderBrowser ? 0 : null,
+                    width: showProviderBrowser ? null : 1,
+                    height: showProviderBrowser ? null : 1,
+                    child: IgnorePointer(
+                      ignoring: !showProviderBrowser,
+                      child: InAppWebView(
+                        initialUrlRequest: URLRequest(url: WebUri(trackUrl)),
+                        initialSettings: InAppWebViewSettings(
+                          javaScriptEnabled: true,
+                          useOnDownloadStart: true,
+                          mediaPlaybackRequiresUserGesture: true,
+                        ),
+                        onWebViewCreated: (controller) =>
+                            webViewController = controller,
+                        onLoadStop: (controller, _) => _onLoaded(controller),
+                        onReceivedError: (_, request, error) {
+                          if (request.isForMainFrame == false || !mounted) {
+                            return;
+                          }
+                          setState(() {
+                            phase = BrowserAcquisitionPhase.failed;
+                            detail = 'Monochrome could not be loaded. Check your connection and retry.';
+                          });
+                        },
+                        onDownloadStarting: (_, request) =>
+                            _onDownloadStarted(request),
                       ),
-                      onWebViewCreated: (controller) =>
-                          webViewController = controller,
-                      onLoadStop: (controller, _) => _onLoaded(controller),
-                      onReceivedError: (_, request, error) {
-                        if (request.isForMainFrame == false || !mounted) return;
-                        setState(() {
-                          phase = BrowserAcquisitionPhase.failed;
-                          detail = 'Monochrome could not be loaded. Check your connection and retry.';
-                        });
-                      },
-                      onDownloadStartRequest: (_, request) =>
-                          _onDownloadStarted(request),
                     ),
                   ),
                 ],

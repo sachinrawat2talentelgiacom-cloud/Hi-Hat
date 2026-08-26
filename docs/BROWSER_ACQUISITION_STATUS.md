@@ -1,36 +1,37 @@
 # Browser acquisition status
 
-Windows implementation now routes acquisition through the local C# WebView2 helper and FastAPI.
+Updated: 2026-08-26
 
-## Boundary
+Windows acquisition now runs inside `HiHat.exe` through the
+`flutter_inappwebview` WebView2 plugin. The launcher does not start FastAPI,
+Python, or the former C# helper.
 
-- The Flutter client sends non-local Play requests to FastAPI; it no longer opens its own provider WebView.
-- FastAPI asks the localhost-only helper to open the exact `/track/{provider_track_id}` route in a persistent WebView2 profile.
-- Existing provider verification remains visible and must be completed by the user.
-- Hi Hat checks for the visible `#download-track-btn` and invokes that ordinary page action only.
-- Cookies, local storage, Turnstile values, Cloudflare state, authorization headers, and signed URLs are never read or sent to FastAPI.
-- Reset Browser Session travels through FastAPI to the helper and clears its WebView2 profile data without touching local music.
+## Current flow
 
-## Download and finalization
-
-The helper subscribes to WebView2 `DownloadStarting`, associates the operation with the acquisition ID, and directs it to `%LOCALAPPDATA%\HiHat\Acquisitions\<id>\incoming.flac`. FastAPI then:
-
-1. validates the FLAC marker and stream metadata;
-2. compares actual and expected duration;
-3. hashes and deduplicates the file;
-4. writes a managed `.part` copy;
-5. validates that copy again;
-6. atomically renames it into the managed music library;
-7. updates Drift;
-8. returns the local track to the original Play action for autoplay.
+1. Play checks Drift for an existing provider track and plays it immediately.
+2. A missing Monochrome track opens the in-app acquisition route.
+3. The normal provider track page loads in an embedded WebView2 profile.
+4. Human verification is shown when the page requires it.
+5. Hi Hat invokes the page's ordinary visible Download action.
+6. On Windows the download is directed to the app support acquisition folder.
+7. The completed file is validated, duration-checked, hashed, deduplicated,
+   copied through `.part`, atomically finalized, recorded in Drift, and played.
 
 ## Current verification
 
-- Dart formatting: passed.
-- Flutter analysis: passed.
-- Flutter unit/widget tests: passed.
-- Native helper build: blocked on this machine until the .NET SDK is installed; the launcher now performs that one-time bootstrap.
-- Live browser download and autoplay: not yet claimed.
-- Android: not yet tested.
+- Flutter formatting: passed.
+- Flutter analysis: passed with no issues.
+- Flutter tests: all four tests passed.
+- Windows debug build: passed and produced `hi_hat.exe`.
+- Live browser download and autoplay: requires an interactive acceptance test.
+- Clean WebView shutdown on `6.2.0-beta.3`: requires an interactive acceptance
+  test.
+- Android browser acquisition: not yet tested.
 
-Visible debug mode intentionally remains the default until a real known-track test confirms search, download capture, validation, finalization, and autoplay. Set `HI_HAT_HELPER_HIDDEN=1` only after that acceptance test passes.
+## Remaining work
+
+- Keep one prewarmed acquisition WebView alive across Play operations.
+- Prove whether the browser-managed FLAC can be read safely while it grows.
+- If safe, add progressive playback and adaptive buffering; otherwise retain
+  honest full-download mode.
+- Add download percentage events where content length is available.

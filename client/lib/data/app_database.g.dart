@@ -128,6 +128,28 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _channelsMeta = const VerificationMeta(
+    'channels',
+  );
+  @override
+  late final GeneratedColumn<int> channels = GeneratedColumn<int>(
+    'channels',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
+    'durationSeconds',
+  );
+  @override
+  late final GeneratedColumn<double> durationSeconds = GeneratedColumn<double>(
+    'duration_seconds',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _fileSizeMeta = const VerificationMeta(
     'fileSize',
   );
@@ -151,6 +173,18 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _validatedAtMeta = const VerificationMeta(
+    'validatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> validatedAt = GeneratedColumn<DateTime>(
+    'validated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -165,8 +199,11 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
     codec,
     bitDepth,
     sampleRate,
+    channels,
+    durationSeconds,
     fileSize,
     downloadedAt,
+    validatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -266,6 +303,21 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
         sampleRate.isAcceptableOrUnknown(data['sample_rate']!, _sampleRateMeta),
       );
     }
+    if (data.containsKey('channels')) {
+      context.handle(
+        _channelsMeta,
+        channels.isAcceptableOrUnknown(data['channels']!, _channelsMeta),
+      );
+    }
+    if (data.containsKey('duration_seconds')) {
+      context.handle(
+        _durationSecondsMeta,
+        durationSeconds.isAcceptableOrUnknown(
+          data['duration_seconds']!,
+          _durationSecondsMeta,
+        ),
+      );
+    }
     if (data.containsKey('file_size')) {
       context.handle(
         _fileSizeMeta,
@@ -280,6 +332,15 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
         downloadedAt.isAcceptableOrUnknown(
           data['downloaded_at']!,
           _downloadedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('validated_at')) {
+      context.handle(
+        _validatedAtMeta,
+        validatedAt.isAcceptableOrUnknown(
+          data['validated_at']!,
+          _validatedAtMeta,
         ),
       );
     }
@@ -340,6 +401,14 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
         DriftSqlType.int,
         data['${effectivePrefix}sample_rate'],
       ),
+      channels: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channels'],
+      ),
+      durationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}duration_seconds'],
+      ),
       fileSize: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}file_size'],
@@ -347,6 +416,10 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
       downloadedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}downloaded_at'],
+      )!,
+      validatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}validated_at'],
       )!,
     );
   }
@@ -370,8 +443,11 @@ class Track extends DataClass implements Insertable<Track> {
   final String? codec;
   final int? bitDepth;
   final int? sampleRate;
+  final int? channels;
+  final double? durationSeconds;
   final int fileSize;
   final DateTime downloadedAt;
+  final DateTime validatedAt;
   const Track({
     required this.id,
     required this.provider,
@@ -385,8 +461,11 @@ class Track extends DataClass implements Insertable<Track> {
     this.codec,
     this.bitDepth,
     this.sampleRate,
+    this.channels,
+    this.durationSeconds,
     required this.fileSize,
     required this.downloadedAt,
+    required this.validatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -413,8 +492,15 @@ class Track extends DataClass implements Insertable<Track> {
     if (!nullToAbsent || sampleRate != null) {
       map['sample_rate'] = Variable<int>(sampleRate);
     }
+    if (!nullToAbsent || channels != null) {
+      map['channels'] = Variable<int>(channels);
+    }
+    if (!nullToAbsent || durationSeconds != null) {
+      map['duration_seconds'] = Variable<double>(durationSeconds);
+    }
     map['file_size'] = Variable<int>(fileSize);
     map['downloaded_at'] = Variable<DateTime>(downloadedAt);
+    map['validated_at'] = Variable<DateTime>(validatedAt);
     return map;
   }
 
@@ -442,8 +528,15 @@ class Track extends DataClass implements Insertable<Track> {
       sampleRate: sampleRate == null && nullToAbsent
           ? const Value.absent()
           : Value(sampleRate),
+      channels: channels == null && nullToAbsent
+          ? const Value.absent()
+          : Value(channels),
+      durationSeconds: durationSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationSeconds),
       fileSize: Value(fileSize),
       downloadedAt: Value(downloadedAt),
+      validatedAt: Value(validatedAt),
     );
   }
 
@@ -465,8 +558,11 @@ class Track extends DataClass implements Insertable<Track> {
       codec: serializer.fromJson<String?>(json['codec']),
       bitDepth: serializer.fromJson<int?>(json['bitDepth']),
       sampleRate: serializer.fromJson<int?>(json['sampleRate']),
+      channels: serializer.fromJson<int?>(json['channels']),
+      durationSeconds: serializer.fromJson<double?>(json['durationSeconds']),
       fileSize: serializer.fromJson<int>(json['fileSize']),
       downloadedAt: serializer.fromJson<DateTime>(json['downloadedAt']),
+      validatedAt: serializer.fromJson<DateTime>(json['validatedAt']),
     );
   }
   @override
@@ -485,8 +581,11 @@ class Track extends DataClass implements Insertable<Track> {
       'codec': serializer.toJson<String?>(codec),
       'bitDepth': serializer.toJson<int?>(bitDepth),
       'sampleRate': serializer.toJson<int?>(sampleRate),
+      'channels': serializer.toJson<int?>(channels),
+      'durationSeconds': serializer.toJson<double?>(durationSeconds),
       'fileSize': serializer.toJson<int>(fileSize),
       'downloadedAt': serializer.toJson<DateTime>(downloadedAt),
+      'validatedAt': serializer.toJson<DateTime>(validatedAt),
     };
   }
 
@@ -503,8 +602,11 @@ class Track extends DataClass implements Insertable<Track> {
     Value<String?> codec = const Value.absent(),
     Value<int?> bitDepth = const Value.absent(),
     Value<int?> sampleRate = const Value.absent(),
+    Value<int?> channels = const Value.absent(),
+    Value<double?> durationSeconds = const Value.absent(),
     int? fileSize,
     DateTime? downloadedAt,
+    DateTime? validatedAt,
   }) => Track(
     id: id ?? this.id,
     provider: provider ?? this.provider,
@@ -518,8 +620,13 @@ class Track extends DataClass implements Insertable<Track> {
     codec: codec.present ? codec.value : this.codec,
     bitDepth: bitDepth.present ? bitDepth.value : this.bitDepth,
     sampleRate: sampleRate.present ? sampleRate.value : this.sampleRate,
+    channels: channels.present ? channels.value : this.channels,
+    durationSeconds: durationSeconds.present
+        ? durationSeconds.value
+        : this.durationSeconds,
     fileSize: fileSize ?? this.fileSize,
     downloadedAt: downloadedAt ?? this.downloadedAt,
+    validatedAt: validatedAt ?? this.validatedAt,
   );
   Track copyWithCompanion(TracksCompanion data) {
     return Track(
@@ -541,10 +648,17 @@ class Track extends DataClass implements Insertable<Track> {
       sampleRate: data.sampleRate.present
           ? data.sampleRate.value
           : this.sampleRate,
+      channels: data.channels.present ? data.channels.value : this.channels,
+      durationSeconds: data.durationSeconds.present
+          ? data.durationSeconds.value
+          : this.durationSeconds,
       fileSize: data.fileSize.present ? data.fileSize.value : this.fileSize,
       downloadedAt: data.downloadedAt.present
           ? data.downloadedAt.value
           : this.downloadedAt,
+      validatedAt: data.validatedAt.present
+          ? data.validatedAt.value
+          : this.validatedAt,
     );
   }
 
@@ -563,8 +677,11 @@ class Track extends DataClass implements Insertable<Track> {
           ..write('codec: $codec, ')
           ..write('bitDepth: $bitDepth, ')
           ..write('sampleRate: $sampleRate, ')
+          ..write('channels: $channels, ')
+          ..write('durationSeconds: $durationSeconds, ')
           ..write('fileSize: $fileSize, ')
-          ..write('downloadedAt: $downloadedAt')
+          ..write('downloadedAt: $downloadedAt, ')
+          ..write('validatedAt: $validatedAt')
           ..write(')'))
         .toString();
   }
@@ -583,8 +700,11 @@ class Track extends DataClass implements Insertable<Track> {
     codec,
     bitDepth,
     sampleRate,
+    channels,
+    durationSeconds,
     fileSize,
     downloadedAt,
+    validatedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -602,8 +722,11 @@ class Track extends DataClass implements Insertable<Track> {
           other.codec == this.codec &&
           other.bitDepth == this.bitDepth &&
           other.sampleRate == this.sampleRate &&
+          other.channels == this.channels &&
+          other.durationSeconds == this.durationSeconds &&
           other.fileSize == this.fileSize &&
-          other.downloadedAt == this.downloadedAt);
+          other.downloadedAt == this.downloadedAt &&
+          other.validatedAt == this.validatedAt);
 }
 
 class TracksCompanion extends UpdateCompanion<Track> {
@@ -619,8 +742,11 @@ class TracksCompanion extends UpdateCompanion<Track> {
   final Value<String?> codec;
   final Value<int?> bitDepth;
   final Value<int?> sampleRate;
+  final Value<int?> channels;
+  final Value<double?> durationSeconds;
   final Value<int> fileSize;
   final Value<DateTime> downloadedAt;
+  final Value<DateTime> validatedAt;
   final Value<int> rowid;
   const TracksCompanion({
     this.id = const Value.absent(),
@@ -635,8 +761,11 @@ class TracksCompanion extends UpdateCompanion<Track> {
     this.codec = const Value.absent(),
     this.bitDepth = const Value.absent(),
     this.sampleRate = const Value.absent(),
+    this.channels = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
     this.fileSize = const Value.absent(),
     this.downloadedAt = const Value.absent(),
+    this.validatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TracksCompanion.insert({
@@ -652,8 +781,11 @@ class TracksCompanion extends UpdateCompanion<Track> {
     this.codec = const Value.absent(),
     this.bitDepth = const Value.absent(),
     this.sampleRate = const Value.absent(),
+    this.channels = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
     required int fileSize,
     this.downloadedAt = const Value.absent(),
+    this.validatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        provider = Value(provider),
@@ -676,8 +808,11 @@ class TracksCompanion extends UpdateCompanion<Track> {
     Expression<String>? codec,
     Expression<int>? bitDepth,
     Expression<int>? sampleRate,
+    Expression<int>? channels,
+    Expression<double>? durationSeconds,
     Expression<int>? fileSize,
     Expression<DateTime>? downloadedAt,
+    Expression<DateTime>? validatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -693,8 +828,11 @@ class TracksCompanion extends UpdateCompanion<Track> {
       if (codec != null) 'codec': codec,
       if (bitDepth != null) 'bit_depth': bitDepth,
       if (sampleRate != null) 'sample_rate': sampleRate,
+      if (channels != null) 'channels': channels,
+      if (durationSeconds != null) 'duration_seconds': durationSeconds,
       if (fileSize != null) 'file_size': fileSize,
       if (downloadedAt != null) 'downloaded_at': downloadedAt,
+      if (validatedAt != null) 'validated_at': validatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -712,8 +850,11 @@ class TracksCompanion extends UpdateCompanion<Track> {
     Value<String?>? codec,
     Value<int?>? bitDepth,
     Value<int?>? sampleRate,
+    Value<int?>? channels,
+    Value<double?>? durationSeconds,
     Value<int>? fileSize,
     Value<DateTime>? downloadedAt,
+    Value<DateTime>? validatedAt,
     Value<int>? rowid,
   }) {
     return TracksCompanion(
@@ -729,8 +870,11 @@ class TracksCompanion extends UpdateCompanion<Track> {
       codec: codec ?? this.codec,
       bitDepth: bitDepth ?? this.bitDepth,
       sampleRate: sampleRate ?? this.sampleRate,
+      channels: channels ?? this.channels,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
       fileSize: fileSize ?? this.fileSize,
       downloadedAt: downloadedAt ?? this.downloadedAt,
+      validatedAt: validatedAt ?? this.validatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -774,11 +918,20 @@ class TracksCompanion extends UpdateCompanion<Track> {
     if (sampleRate.present) {
       map['sample_rate'] = Variable<int>(sampleRate.value);
     }
+    if (channels.present) {
+      map['channels'] = Variable<int>(channels.value);
+    }
+    if (durationSeconds.present) {
+      map['duration_seconds'] = Variable<double>(durationSeconds.value);
+    }
     if (fileSize.present) {
       map['file_size'] = Variable<int>(fileSize.value);
     }
     if (downloadedAt.present) {
       map['downloaded_at'] = Variable<DateTime>(downloadedAt.value);
+    }
+    if (validatedAt.present) {
+      map['validated_at'] = Variable<DateTime>(validatedAt.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -801,8 +954,11 @@ class TracksCompanion extends UpdateCompanion<Track> {
           ..write('codec: $codec, ')
           ..write('bitDepth: $bitDepth, ')
           ..write('sampleRate: $sampleRate, ')
+          ..write('channels: $channels, ')
+          ..write('durationSeconds: $durationSeconds, ')
           ..write('fileSize: $fileSize, ')
           ..write('downloadedAt: $downloadedAt, ')
+          ..write('validatedAt: $validatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -833,8 +989,11 @@ typedef $$TracksTableCreateCompanionBuilder = TracksCompanion Function({
   Value<String?> codec,
   Value<int?> bitDepth,
   Value<int?> sampleRate,
+  Value<int?> channels,
+  Value<double?> durationSeconds,
   required int fileSize,
   Value<DateTime> downloadedAt,
+  Value<DateTime> validatedAt,
   Value<int> rowid,
 });
 typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
@@ -850,8 +1009,11 @@ typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
   Value<String?> codec,
   Value<int?> bitDepth,
   Value<int?> sampleRate,
+  Value<int?> channels,
+  Value<double?> durationSeconds,
   Value<int> fileSize,
   Value<DateTime> downloadedAt,
+  Value<DateTime> validatedAt,
   Value<int> rowid,
 });
 
@@ -924,6 +1086,16 @@ class $$TracksTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get channels => $composableBuilder(
+    column: $table.channels,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get fileSize => $composableBuilder(
     column: $table.fileSize,
     builder: (column) => ColumnFilters(column),
@@ -931,6 +1103,11 @@ class $$TracksTableFilterComposer
 
   ColumnFilters<DateTime> get downloadedAt => $composableBuilder(
     column: $table.downloadedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get validatedAt => $composableBuilder(
+    column: $table.validatedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1004,6 +1181,16 @@ class $$TracksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get channels => $composableBuilder(
+    column: $table.channels,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get fileSize => $composableBuilder(
     column: $table.fileSize,
     builder: (column) => ColumnOrderings(column),
@@ -1011,6 +1198,11 @@ class $$TracksTableOrderingComposer
 
   ColumnOrderings<DateTime> get downloadedAt => $composableBuilder(
     column: $table.downloadedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get validatedAt => $composableBuilder(
+    column: $table.validatedAt,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -1066,11 +1258,24 @@ class $$TracksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get channels =>
+      $composableBuilder(column: $table.channels, builder: (column) => column);
+
+  GeneratedColumn<double> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get fileSize =>
       $composableBuilder(column: $table.fileSize, builder: (column) => column);
 
   GeneratedColumn<DateTime> get downloadedAt => $composableBuilder(
     column: $table.downloadedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get validatedAt => $composableBuilder(
+    column: $table.validatedAt,
     builder: (column) => column,
   );
 }
@@ -1115,8 +1320,11 @@ class $$TracksTableTableManager
                 Value<String?> codec = const Value.absent(),
                 Value<int?> bitDepth = const Value.absent(),
                 Value<int?> sampleRate = const Value.absent(),
+                Value<int?> channels = const Value.absent(),
+                Value<double?> durationSeconds = const Value.absent(),
                 Value<int> fileSize = const Value.absent(),
                 Value<DateTime> downloadedAt = const Value.absent(),
+                Value<DateTime> validatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TracksCompanion(
                 id: id,
@@ -1131,8 +1339,11 @@ class $$TracksTableTableManager
                 codec: codec,
                 bitDepth: bitDepth,
                 sampleRate: sampleRate,
+                channels: channels,
+                durationSeconds: durationSeconds,
                 fileSize: fileSize,
                 downloadedAt: downloadedAt,
+                validatedAt: validatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1149,8 +1360,11 @@ class $$TracksTableTableManager
                 Value<String?> codec = const Value.absent(),
                 Value<int?> bitDepth = const Value.absent(),
                 Value<int?> sampleRate = const Value.absent(),
+                Value<int?> channels = const Value.absent(),
+                Value<double?> durationSeconds = const Value.absent(),
                 required int fileSize,
                 Value<DateTime> downloadedAt = const Value.absent(),
+                Value<DateTime> validatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TracksCompanion.insert(
                 id: id,
@@ -1165,8 +1379,11 @@ class $$TracksTableTableManager
                 codec: codec,
                 bitDepth: bitDepth,
                 sampleRate: sampleRate,
+                channels: channels,
+                durationSeconds: durationSeconds,
                 fileSize: fileSize,
                 downloadedAt: downloadedAt,
+                validatedAt: validatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -1,13 +1,12 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/track.dart';
-import '../../services/audio_engine.dart';
 import '../../services/download_service.dart';
-import '../browser_acquisition/browser_acquisition_screen.dart';
+import '../../services/provider_search_service.dart';
+import '../../services/track_playback_coordinator.dart';
 import 'search_controller.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -77,7 +76,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
                 onChanged: (value) {
                   debounce?.cancel();
-                  debounce = Timer(const Duration(milliseconds: 420), () {
+                  debounce = Timer(const Duration(milliseconds: 300), () {
                     ref.read(searchControllerProvider.notifier).search(value);
                   });
                 },
@@ -96,18 +95,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: Center(child: CircularProgressIndicator()),
           ),
           error: (error, _) {
-            final providerUnavailable =
-                error is DioException && error.response?.statusCode == 503;
+            final providerUnavailable = error is ProviderSearchException;
             return SliverFillRemaining(
               hasScrollBody: false,
               child: _SearchMessage(
                 icon: Icons.cloud_off_outlined,
                 title: providerUnavailable
-                    ? 'Music provider temporarily unavailable'
-                    : "Couldn't reach the Hi Hat backend",
+                    ? 'Search source did not respond'
+                    : 'Search could not be completed',
                 body: providerUnavailable
-                    ? 'The app is connected, but every upstream music source is currently offline. Try again shortly.'
-                    : 'Check that the minimized backend window is still running, then try again.',
+                    ? 'Every configured music source is currently unavailable. Your local library and offline playback still work.'
+                    : 'Try again shortly. Your local library remains available.',
                 action: FilledButton.tonalIcon(
                   onPressed: () => ref
                       .read(searchControllerProvider.notifier)
@@ -156,25 +154,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Future<void> _play(TrackSummary track) async {
-    ref.read(audioEngineProvider.notifier).showTrack(track);
-    TrackSummary? local;
-    if (track.isLocal) {
-      local = track;
-    } else if (track.provider == 'monochrome') {
-      local = await Navigator.of(context).push<TrackSummary>(
-        MaterialPageRoute(
-          builder: (_) => BrowserAcquisitionScreen(track: track),
-          fullscreenDialog: true,
-        ),
-      );
-    } else {
-      ref
-          .read(downloadServiceProvider.notifier)
-          .fail(track.id, 'This provider is not supported for acquisition.');
-    }
+    final playTimer = Stopwatch()..start();
+    final local = await ref
+        .read(trackPlaybackCoordinatorProvider)
+        .play(track, Navigator.of(context));
+    if (!mounted) return;
     if (local != null) {
-      await ref.read(audioEngineProvider.notifier).playLocal(local);
-    } else if (mounted) {
+      debugPrint('local_play_latency_ms=${playTimer.elapsedMilliseconds}');
+    } else {
       final error = ref.read(downloadServiceProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error ?? 'The download failed. Try again.')),

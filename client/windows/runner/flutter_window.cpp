@@ -1,6 +1,8 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <flutter/standard_method_codec.h>
+#include <flutter/method_result_functions.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -25,6 +27,14 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+#ifndef NDEBUG
+  diagnostics_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "hihat/diagnostics",
+          &flutter::StandardMethodCodec::GetInstance());
+  diagnostic_pipe_server_ = std::make_unique<DiagnosticPipeServer>(GetHandle());
+  diagnostic_pipe_server_->Start();
+#endif
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -40,6 +50,13 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+#ifndef NDEBUG
+  if (diagnostic_pipe_server_) {
+    diagnostic_pipe_server_->Stop();
+    diagnostic_pipe_server_.reset();
+  }
+  diagnostics_channel_.reset();
+#endif
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -62,6 +79,36 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+#ifndef NDEBUG
+    case kDiagnosticPipeMessage: {
+      auto* request = reinterpret_cast<DiagnosticPipeRequest*>(lparam);
+      if (!request || !diagnostics_channel_) break;
+      diagnostics_channel_->InvokeMethod(
+          "command", std::make_unique<flutter::EncodableValue>(request->request),
+          std::make_unique<flutter::MethodResultFunctions<flutter::EncodableValue>>(
+              [request](const flutter::EncodableValue* result) {
+                if (result) {
+                  if (const auto* value = std::get_if<std::string>(result)) {
+                    request->response = *value;
+                  }
+                }
+                if (request->response.empty()) {
+                  request->response = R"({"ok":false,"error":"INVALID_FLUTTER_RESPONSE"})";
+                }
+                SetEvent(request->completed);
+              },
+              [request](const std::string& code, const std::string& message,
+                        const flutter::EncodableValue*) {
+                request->response = R"({"ok":false,"error":"FLUTTER_CHANNEL_ERROR"})";
+                SetEvent(request->completed);
+              },
+              [request]() {
+                request->response = R"({"ok":false,"error":"NOT_IMPLEMENTED"})";
+                SetEvent(request->completed);
+              }));
+      return 0;
+    }
+#endif
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

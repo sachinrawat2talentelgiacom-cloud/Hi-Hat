@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'app.dart';
+import 'diagnostics/diagnostic_bridge.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
-  runApp(const ProviderScope(child: HiHatApp()));
+  runApp(const ProviderScope(child: DiagnosticBridge(child: HiHatApp())));
 }

@@ -61,6 +61,7 @@ class AudioEngine extends StateNotifier<PlaybackState> {
   void showTrack(TrackSummary track) => state = state.copyWith(track: track);
   Future<void> toggle() => _player.playOrPause();
   Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> stop() => _player.stop();
 
   @override
   void dispose() {

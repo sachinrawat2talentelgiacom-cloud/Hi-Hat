@@ -38,111 +38,119 @@ class PlayerPanel extends ConsumerWidget {
     final progress = totalMs > 0
         ? (playback.position.inMilliseconds / totalMs).clamp(0.0, 1.0)
         : 0.0;
-    return Padding(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        children: [
-          const Spacer(),
-          _LargeArtwork(track: current),
-          const SizedBox(height: 26),
-          Text(
-            current.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 6),
-          Text(current.artist, style: Theme.of(context).textTheme.bodyLarge),
-          const SizedBox(height: 24),
-          Slider(
-            value: progress,
-            onChanged: playback.duration == Duration.zero
-                ? null
-                : (value) => ref
-                      .read(audioEngineProvider.notifier)
-                      .seek(playback.duration * value),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(_time(playback.position)),
-              Text(_time(playback.duration)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                onPressed: null,
-                icon: const Icon(Icons.skip_previous_rounded),
-                iconSize: 36,
-              ),
-              const SizedBox(width: 20),
-              FilledButton(
-                onPressed: current.isLocal
-                    ? () => ref.read(audioEngineProvider.notifier).toggle()
-                    : null,
-                style: FilledButton.styleFrom(
-                  shape: const CircleBorder(),
-                  minimumSize: const Size.square(72),
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              children: [
+                _LargeArtwork(track: current),
+                const SizedBox(height: 26),
+                Text(
+                  current.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineMedium,
                 ),
-                child: Icon(
-                  playback.playing
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  size: 36,
+                const SizedBox(height: 6),
+                Text(
+                  current.artist,
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
-              ),
-              const SizedBox(width: 20),
-              IconButton(
-                onPressed: null,
-                icon: const Icon(Icons.skip_next_rounded),
-                iconSize: 36,
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          const Divider(),
-          const SizedBox(height: 18),
-          _Reading(
-            label: current.isLocal ? 'VERIFIED SOURCE' : 'LISTED QUALITY',
-            value: current.quality.display,
-            icon: current.isLocal
-                ? Icons.verified_outlined
-                : Icons.high_quality_outlined,
-          ),
-          const SizedBox(height: 14),
-          _Reading(
-            label: 'OUTPUT',
-            value: playback.outputLabel,
-            icon: Icons.speaker_outlined,
-          ),
-          if (transfer.trackId == current.id &&
-              _isActivePhase(transfer.phase)) ...[
-            const SizedBox(height: 22),
-            LinearProgressIndicator(
-              value: transfer.progress > 0 ? transfer.progress : null,
+                const SizedBox(height: 24),
+                Slider(
+                  value: progress,
+                  onChanged: playback.duration == Duration.zero
+                      ? null
+                      : (value) => ref
+                            .read(audioEngineProvider.notifier)
+                            .seek(playback.duration * value),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_time(playback.position)),
+                    Text(_time(playback.duration)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      onPressed: null,
+                      icon: const Icon(Icons.skip_previous_rounded),
+                      iconSize: 36,
+                    ),
+                    const SizedBox(width: 20),
+                    FilledButton(
+                      onPressed: current.isLocal
+                          ? () =>
+                                ref.read(audioEngineProvider.notifier).toggle()
+                          : null,
+                      style: FilledButton.styleFrom(
+                        shape: const CircleBorder(),
+                        minimumSize: const Size.square(72),
+                      ),
+                      child: Icon(
+                        playback.playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 36,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    IconButton(
+                      onPressed: null,
+                      icon: const Icon(Icons.skip_next_rounded),
+                      iconSize: 36,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 30),
+                const Divider(),
+                const SizedBox(height: 18),
+                _Reading(
+                  label: current.isLocal ? 'VERIFIED SOURCE' : 'LISTED QUALITY',
+                  value: current.quality.display,
+                  icon: current.isLocal
+                      ? Icons.verified_outlined
+                      : Icons.high_quality_outlined,
+                ),
+                const SizedBox(height: 14),
+                _Reading(
+                  label: 'OUTPUT',
+                  value: playback.outputLabel,
+                  icon: Icons.speaker_outlined,
+                ),
+                if (transfer.trackId == current.id &&
+                    _isActivePhase(transfer.phase)) ...[
+                  const SizedBox(height: 22),
+                  LinearProgressIndicator(
+                    value: transfer.progress > 0 ? transfer.progress : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(_phase(transfer.phase)),
+                  ),
+                ] else if (transfer.trackId == current.id &&
+                    transfer.phase == 'FAILED') ...[
+                  const SizedBox(height: 22),
+                  _Reading(
+                    label: 'SOURCE UNAVAILABLE',
+                    value: transfer.error ?? 'This track could not be downloaded. Try another result.',
+                    icon: Icons.block_outlined,
+                  ),
+                ],
+                const SizedBox(height: 20),
+              ],
             ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(_phase(transfer.phase)),
-            ),
-          ] else if (transfer.trackId == current.id &&
-              transfer.phase == 'FAILED') ...[
-            const SizedBox(height: 22),
-            _Reading(
-              label: 'SOURCE UNAVAILABLE',
-              value:
-                  transfer.error ??
-                  'This track could not be downloaded. Try another result.',
-              icon: Icons.block_outlined,
-            ),
-          ],
-          const Spacer(),
-        ],
+          ),
+        ),
       ),
     );
   }

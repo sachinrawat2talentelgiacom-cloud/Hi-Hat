@@ -16,8 +16,12 @@ class Tracks extends Table {
   TextColumn get codec => text().nullable()();
   IntColumn get bitDepth => integer().nullable()();
   IntColumn get sampleRate => integer().nullable()();
+  IntColumn get channels => integer().nullable()();
+  RealColumn get durationSeconds => real().nullable()();
   IntColumn get fileSize => integer()();
   DateTimeColumn get downloadedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get validatedAt =>
       dateTime().withDefault(currentDateAndTime)();
 
   @override
@@ -27,9 +31,32 @@ class Tracks extends Table {
 @DriftDatabase(tables: [Tracks])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'hi_hat'));
+  AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        final existing = (await customSelect(
+          'PRAGMA table_info(tracks)',
+        ).get()).map((row) => row.read<String>('name')).toSet();
+        if (!existing.contains('channels')) {
+          await migrator.addColumn(tracks, tracks.channels);
+        }
+        if (!existing.contains('duration_seconds')) {
+          await migrator.addColumn(tracks, tracks.durationSeconds);
+        }
+        if (!existing.contains('validated_at')) {
+          await customStatement(
+            'ALTER TABLE tracks ADD COLUMN validated_at INTEGER NOT NULL DEFAULT 0',
+          );
+        }
+      }
+    },
+  );
 
   Stream<List<Track>> watchLibrary() =>
       (select(tracks)..orderBy([
