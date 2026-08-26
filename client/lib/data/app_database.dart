@@ -96,4 +96,9 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> saveTrack(TracksCompanion value) =>
       into(tracks).insertOnConflictUpdate(value);
+
+  Future<void> updateLocalPath(String id, String localPath) =>
+      (update(tracks)..where((row) => row.id.equals(id))).write(
+        TracksCompanion(localPath: Value(localPath)),
+      );
 }

@@ -4,11 +4,11 @@ import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../data/app_database.dart';
 import '../models/track.dart';
 import 'flac_metadata.dart';
+import 'library_folder_service.dart';
 import 'library_service.dart';
 
 class LocalImportService {
@@ -54,14 +54,14 @@ class LocalImportService {
     }
 
     final root =
-        await (_libraryRoot?.call() ?? getApplicationDocumentsDirectory());
+        await (_libraryRoot?.call() ??
+            ref!.read(libraryFolderServiceProvider).libraryRoot());
     final title = metadata.title ?? requested.title;
     final artist = metadata.artist ?? requested.artist;
     final album = metadata.album ?? requested.album;
     final folder = Directory(
       p.join(
         root.path,
-        'Music',
         safePathSegment(artist),
         safePathSegment(album ?? 'Singles'),
       ),
@@ -72,6 +72,14 @@ class LocalImportService {
     await File(partPath).writeAsBytes(bytes, flush: true);
     await FlacMetadataReader.read(File(partPath));
     final finalFile = await File(partPath).rename(finalPath);
+    await ref
+        ?.read(libraryFolderServiceProvider)
+        .persistDownloadedFile(
+          finalFile,
+          artist: safePathSegment(artist),
+          album: safePathSegment(album ?? 'Singles'),
+          title: safePathSegment(title),
+        );
     final quality = AudioQuality(
       codec: 'FLAC',
       lossless: true,

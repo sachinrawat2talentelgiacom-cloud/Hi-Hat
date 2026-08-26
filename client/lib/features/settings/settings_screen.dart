@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../diagnostics/browser_acquisition_log.dart';
+import '../../services/library_folder_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -14,15 +17,21 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool browserDebugVisible = false;
+  String? libraryFolder;
+  bool choosingFolder = false;
 
   @override
   void initState() {
     super.initState();
-    SharedPreferences.getInstance().then((preferences) {
+    SharedPreferences.getInstance().then((preferences) async {
+      final folder = await ref
+          .read(libraryFolderServiceProvider)
+          .configurationLabel();
       if (!mounted) return;
       setState(() {
         browserDebugVisible =
             preferences.getBool('providerBrowserDebugVisible') ?? false;
+        libraryFolder = folder;
       });
     });
   }
@@ -35,6 +44,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 48),
         sliver: SliverList.list(
           children: [
+            Text('Library', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.folder_outlined),
+              title: const Text('Music folder'),
+              subtitle: Text(
+                libraryFolder ??
+                    'Choose where downloaded tracks should be stored',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: choosingFolder
+                  ? const SizedBox.square(
+                      dimension: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_right),
+              onTap: choosingFolder ? null : _chooseLibraryFolder,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              libraryFolder == null
+                  ? 'Hi Hat will ask before your first download.'
+                  : 'Downloads are organized as Artist / Album / Track.flac. Library scans this folder for existing FLAC files.',
+              style: TextStyle(color: Theme.of(context).colorScheme.outline),
+            ),
+            const SizedBox(height: 34),
             Text('Playback', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             const ListTile(
@@ -117,6 +154,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           content: Text('The provider session could not be reset.'),
         ),
       );
+    }
+  }
+
+  Future<void> _chooseLibraryFolder() async {
+    setState(() => choosingFolder = true);
+    try {
+      final folders = ref.read(libraryFolderServiceProvider);
+      final selected = await folders.chooseFolder();
+      if (selected == null || !mounted) return;
+      setState(() => libraryFolder = selected);
+      final result = await folders.scanConfiguredFolder();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.found == 0
+                ? 'Music folder saved. New downloads will appear here.'
+                : 'Music folder saved. Found ${result.found} FLAC ${result.found == 1 ? 'file' : 'files'}.',
+          ),
+        ),
+      );
+    } on FileSystemException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Hi Hat cannot write to that folder. Choose another one.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => choosingFolder = false);
     }
   }
 }

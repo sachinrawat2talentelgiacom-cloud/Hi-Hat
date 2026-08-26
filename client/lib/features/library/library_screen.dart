@@ -10,19 +10,43 @@ import 'package:path/path.dart' as p;
 import '../../data/app_database.dart';
 import '../../services/audio_engine.dart';
 import '../../services/flac_metadata.dart';
+import '../../services/library_folder_service.dart';
 import '../../services/library_service.dart';
 
-class LibraryScreen extends ConsumerWidget {
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  bool scanning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(_scanFolder);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(
           title: const Text('Local library'),
           actions: [
+            IconButton(
+              tooltip: 'Scan music folder',
+              onPressed: scanning ? null : _scanFolder,
+              icon: scanning
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded),
+            ),
             IconButton(
               tooltip: 'Import local FLAC',
               onPressed: () => _import(context, ref),
@@ -155,6 +179,26 @@ class LibraryScreen extends ConsumerWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('$title added to your library.')));
+    }
+  }
+
+  Future<void> _scanFolder() async {
+    if (scanning) return;
+    setState(() => scanning = true);
+    try {
+      await ref.read(libraryFolderServiceProvider).scanConfiguredFolder();
+    } on FileSystemException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The music folder is unavailable. Choose it again in Settings.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => scanning = false);
     }
   }
 }

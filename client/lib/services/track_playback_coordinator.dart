@@ -10,6 +10,7 @@ import '../models/track.dart';
 import 'audio_engine.dart';
 import 'download_service.dart';
 import 'library_service.dart';
+import 'library_folder_service.dart';
 
 class TrackPlaybackCoordinator {
   TrackPlaybackCoordinator(this.ref);
@@ -35,6 +36,13 @@ class TrackPlaybackCoordinator {
       _routeOpen = true;
       ref.read(downloadServiceProvider.notifier).begin(track.id);
       try {
+        final folderReady = await _ensureLibraryFolder(navigator);
+        if (!folderReady) {
+          ref
+              .read(downloadServiceProvider.notifier)
+              .fail(track.id, 'Choose a music folder before downloading.');
+          return null;
+        }
         final preferences = await SharedPreferences.getInstance();
         final debugVisible =
             preferences.getBool(providerBrowserDebugPreferenceKey) ?? false;
@@ -72,6 +80,50 @@ class TrackPlaybackCoordinator {
 
   Future<bool> _localFileExists(String path) async {
     return File(path).exists();
+  }
+
+  Future<bool> _ensureLibraryFolder(NavigatorState navigator) async {
+    final folders = ref.read(libraryFolderServiceProvider);
+    if (await folders.configuredPath() != null) return true;
+    if (!navigator.mounted) return false;
+    final choose = await showDialog<bool>(
+      context: navigator.context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.folder_outlined),
+        title: const Text('Choose your music folder'),
+        content: const Text(
+          'Hi Hat will save this and future downloads there, organized by artist and album.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Choose folder'),
+          ),
+        ],
+      ),
+    );
+    if (choose != true) return false;
+    try {
+      final selected = await folders.chooseFolder();
+      if (selected == null) return false;
+      await folders.scanConfiguredFolder();
+      return true;
+    } on FileSystemException {
+      if (navigator.mounted) {
+        ScaffoldMessenger.of(navigator.context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Hi Hat cannot write to that folder. Choose another one.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
   }
 }
 

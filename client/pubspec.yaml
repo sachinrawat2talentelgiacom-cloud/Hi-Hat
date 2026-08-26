@@ -49,6 +49,7 @@ dependencies:
   # The 6.1.5 Windows plugin crashes in WinRT composition cleanup on current
   # Windows 11. The official 6.2 beta line contains the Windows lifecycle fixes.
   flutter_inappwebview: 6.2.0-beta.3
+  saf: ^2.1.2
 
 dev_dependencies:
   flutter_test:
