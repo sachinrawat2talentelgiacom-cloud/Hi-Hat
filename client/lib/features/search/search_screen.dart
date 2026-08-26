@@ -162,9 +162,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (local != null) {
       debugPrint('local_play_latency_ms=${playTimer.elapsedMilliseconds}');
     } else {
-      final error = ref.read(downloadServiceProvider).error;
+      final transfer = ref.read(downloadServiceProvider);
+      final anotherTrackIsActive =
+          transfer.trackId != null &&
+          transfer.trackId != track.id &&
+          const {
+            'OPENING_PROVIDER',
+            'AUTH_REQUIRED',
+            'MATCHING_TRACK',
+            'STARTING_DOWNLOAD',
+            'PREPARING_AUDIO',
+            'DOWNLOADING',
+            'VERIFYING',
+            'FINALIZING',
+          }.contains(transfer.phase);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error ?? 'The download failed. Try again.')),
+        SnackBar(
+          content: Text(
+            anotherTrackIsActive
+                ? 'Another track is already being prepared. You can keep browsing.'
+                : transfer.error ?? 'The download failed. Try again.',
+          ),
+        ),
       );
     }
   }

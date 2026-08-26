@@ -1,10 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../diagnostics/browser_acquisition_log.dart';
 import '../features/browser_acquisition/browser_acquisition_screen.dart';
 import '../models/track.dart';
 import 'audio_engine.dart';
@@ -43,27 +42,11 @@ class TrackPlaybackCoordinator {
               .fail(track.id, 'Choose a music folder before downloading.');
           return null;
         }
-        final preferences = await SharedPreferences.getInstance();
-        final debugVisible =
-            preferences.getBool(providerBrowserDebugPreferenceKey) ?? false;
-        local = await navigator.push<TrackSummary>(
-          PageRouteBuilder<TrackSummary>(
-            opaque: debugVisible,
-            barrierColor: Colors.transparent,
-            transitionDuration: debugVisible
-                ? const Duration(milliseconds: 250)
-                : Duration.zero,
-            reverseTransitionDuration: debugVisible
-                ? const Duration(milliseconds: 200)
-                : Duration.zero,
-            pageBuilder: (_, animation, secondaryAnimation) =>
-                BrowserAcquisitionScreen(track: track),
-            transitionsBuilder: (_, animation, secondaryAnimation, child) =>
-                debugVisible
-                ? FadeTransition(opacity: animation, child: child)
-                : child,
-          ),
-        );
+        local = await _runAcquisitionInOverlay(track, navigator);
+      } catch (error) {
+        ref
+            .read(downloadServiceProvider.notifier)
+            .fail(track.id, 'Track preparation stopped: $error');
       } finally {
         _routeOpen = false;
       }
@@ -80,6 +63,34 @@ class TrackPlaybackCoordinator {
 
   Future<bool> _localFileExists(String path) async {
     return File(path).exists();
+  }
+
+  Future<TrackSummary?> _runAcquisitionInOverlay(
+    TrackSummary track,
+    NavigatorState navigator,
+  ) async {
+    final overlay = navigator.overlay;
+    if (overlay == null) {
+      throw StateError('The app overlay is unavailable.');
+    }
+    final completer = Completer<TrackSummary?>();
+    late final OverlayEntry entry;
+    var removed = false;
+    void finish(TrackSummary? result) {
+      if (removed) return;
+      removed = true;
+      entry.remove();
+      entry.dispose();
+      if (!completer.isCompleted) completer.complete(result);
+    }
+
+    entry = OverlayEntry(
+      maintainState: true,
+      builder: (_) =>
+          BrowserAcquisitionScreen(track: track, onFinished: finish),
+    );
+    overlay.insert(entry);
+    return completer.future;
   }
 
   Future<bool> _ensureLibraryFolder(NavigatorState navigator) async {

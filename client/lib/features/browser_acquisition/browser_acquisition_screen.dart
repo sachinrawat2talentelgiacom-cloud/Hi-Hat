@@ -35,8 +35,13 @@ enum BrowserAcquisitionPhase {
 }
 
 class BrowserAcquisitionScreen extends ConsumerStatefulWidget {
-  const BrowserAcquisitionScreen({super.key, required this.track});
+  const BrowserAcquisitionScreen({
+    super.key,
+    required this.track,
+    required this.onFinished,
+  });
   final TrackSummary track;
+  final ValueChanged<TrackSummary?> onFinished;
 
   @override
   ConsumerState<BrowserAcquisitionScreen> createState() =>
@@ -60,6 +65,7 @@ class _BrowserAcquisitionScreenState
   bool debugVisible = false;
   bool debugPreferenceLoaded = false;
   bool disposing = false;
+  bool finished = false;
   double lastReportedProgress = 0;
   double? providerDurationSeconds;
   String? expectedFilename;
@@ -482,7 +488,7 @@ class _BrowserAcquisitionScreenState
       completedTrack = local;
       await Future<void>.delayed(const Duration(milliseconds: 350));
       if (!mounted) return;
-      Navigator.of(context).pop(local);
+      _finish(local);
     } catch (error) {
       await acquisitionLog?.event('IMPORT_FAILED', {'error': error.toString()});
       if (!mounted) return;
@@ -497,6 +503,12 @@ class _BrowserAcquisitionScreenState
             error.toString().replaceFirst('FormatException: ', ''),
           );
     }
+  }
+
+  void _finish(TrackSummary? track) {
+    if (finished) return;
+    finished = true;
+    widget.onFinished(track);
   }
 
   void _onProviderConsole(ConsoleMessage message) {
@@ -622,7 +634,7 @@ class _BrowserAcquisitionScreenState
             ),
           if (debugVisible && phase == BrowserAcquisitionPhase.ready)
             TextButton(
-              onPressed: () => Navigator.of(context).pop(completedTrack),
+              onPressed: () => _finish(completedTrack),
               child: const Text('Done'),
             ),
           IconButton(
@@ -631,7 +643,7 @@ class _BrowserAcquisitionScreenState
               ref
                   .read(downloadServiceProvider.notifier)
                   .cancel(widget.track.id);
-              Navigator.of(context).pop();
+              _finish(null);
             },
             icon: const Icon(Icons.close),
           ),
