@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/audio_engine.dart';
+import '../browser_acquisition/acquisition_dock.dart';
+import '../home/home_screen.dart';
 import '../library/library_screen.dart';
 import '../player/player_panel.dart';
 import '../search/search_screen.dart';
@@ -23,7 +25,12 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int selected = 0;
-  final pages = const [SearchScreen(), LibraryScreen(), SettingsScreen()];
+  final pages = const [
+    HomeScreen(),
+    SearchScreen(),
+    LibraryScreen(),
+    SettingsScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -34,51 +41,68 @@ class _AppShellState extends ConsumerState<AppShell> {
         if (expanded) {
           return Scaffold(
             body: SafeArea(
-              child: Row(
+              child: Stack(
                 children: [
-                  NavigationRail(
-                    selectedIndex: selected,
-                    extended: constraints.maxWidth >= 1260,
-                    onDestinationSelected: (value) =>
-                        setState(() => selected = value),
-                    leading: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 22, 12, 36),
-                      child: Text(
-                        'HI HAT',
-                        style: Theme.of(context).textTheme.titleLarge,
+                  Row(
+                    children: [
+                      NavigationRail(
+                        selectedIndex: selected,
+                        extended: constraints.maxWidth >= 1260,
+                        onDestinationSelected: (value) =>
+                            setState(() => selected = value),
+                        leading: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 22, 12, 36),
+                          child: Text(
+                            'HI HAT',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        destinations: const [
+                          NavigationRailDestination(
+                            icon: Icon(Icons.home_outlined),
+                            selectedIcon: Icon(Icons.home_rounded),
+                            label: Text('Home'),
+                          ),
+                          NavigationRailDestination(
+                            icon: Icon(Icons.search),
+                            label: Text('Search'),
+                          ),
+                          NavigationRailDestination(
+                            icon: Icon(Icons.library_music_outlined),
+                            label: Text('Library'),
+                          ),
+                          NavigationRailDestination(
+                            icon: Icon(Icons.tune),
+                            label: Text('Settings'),
+                          ),
+                        ],
                       ),
-                    ),
-                    destinations: const [
-                      NavigationRailDestination(
-                        icon: Icon(Icons.search),
-                        label: Text('Search'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.library_music_outlined),
-                        label: Text('Library'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.tune),
-                        label: Text('Settings'),
-                      ),
+                      const VerticalDivider(),
+                      Expanded(child: pages[selected]),
+                      if (selected != 3) ...[
+                        const VerticalDivider(),
+                        SizedBox(
+                          width: constraints.maxWidth >= 1320 ? 440 : 360,
+                          child: PlayerPanel(track: playback.track),
+                        ),
+                      ],
                     ],
                   ),
-                  const VerticalDivider(),
-                  Expanded(child: pages[selected]),
-                  if (selected != 2) ...[
-                    const VerticalDivider(),
-                    SizedBox(
-                      width: constraints.maxWidth >= 1320 ? 440 : 360,
-                      child: PlayerPanel(track: playback.track),
-                    ),
-                  ],
+                  const AcquisitionDock(),
                 ],
               ),
             ),
           );
         }
         return Scaffold(
-          body: SafeArea(child: pages[selected]),
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Positioned.fill(child: pages[selected]),
+                const AcquisitionDock(),
+              ],
+            ),
+          ),
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -88,6 +112,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                 onDestinationSelected: (value) =>
                     setState(() => selected = value),
                 destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home_outlined),
+                    selectedIcon: Icon(Icons.home_rounded),
+                    label: 'Home',
+                  ),
                   NavigationDestination(
                     icon: Icon(Icons.search),
                     label: 'Search',

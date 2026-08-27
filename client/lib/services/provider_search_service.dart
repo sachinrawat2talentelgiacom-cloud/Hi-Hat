@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
@@ -30,9 +31,21 @@ class ProviderSearchService {
     'https://monochrome-api.samidy.com',
     'https://api.monochrome.tf',
   ];
+  static const catalogSearchEndpoints = <String>[
+    'https://api.tidal.com/v1/search/tracks',
+    'https://tidal-proxy.monochrome.tf/api/v1/search/tracks',
+  ];
+  // Public browser application credentials used by Monochrome's open-source
+  // HiFiClient for catalog metadata. This is an app token, not a user token.
+  static const _catalogClientId = 'txNoH4kkV41MfH25';
+  static const _catalogClientSecret =
+      'dQjy0MinCEvxi1O4UmxvxWnDjt4cgHBPw8ll6nYBk98=';
   final Dio _dio;
   final Map<String, _CachedSearch> _cache = {};
   final Map<String, DateTime> _unavailableUntil = {};
+  String? _catalogToken;
+  DateTime? _catalogTokenExpiresAt;
+  Future<String>? _catalogTokenRequest;
 
   static const cacheTtl = Duration(minutes: 7);
   static const providerCooldown = Duration(seconds: 45);
@@ -49,6 +62,18 @@ class ProviderSearchService {
 
     final stopwatch = Stopwatch()..start();
     Object? lastError;
+    try {
+      final results = await _searchCatalog(normalized, limit: limit);
+      _cache[normalized] = _CachedSearch(DateTime.now(), results);
+      developer.log(
+        'search_latency_ms=${stopwatch.elapsedMilliseconds} source=tidal_catalog',
+        name: 'HiHat',
+      );
+      return results;
+    } catch (error) {
+      lastError = error;
+      developer.log('catalog_search_failed error=$error', name: 'HiHat');
+    }
     for (final instance in instances) {
       final unavailableUntil = _unavailableUntil[instance];
       if (unavailableUntil != null &&
@@ -82,6 +107,108 @@ class ProviderSearchService {
           ? 'No music provider is configured.'
           : 'Music search is temporarily unavailable.',
     );
+  }
+
+  Future<List<TrackSummary>> _searchCatalog(
+    String query, {
+    required int limit,
+  }) async {
+    Object? lastError;
+    for (final endpoint in catalogSearchEndpoints) {
+      try {
+        var token = await _catalogAppToken();
+        Response<dynamic> response;
+        try {
+          response = await _dio.get<dynamic>(
+            endpoint,
+            queryParameters: {
+              'countryCode': 'US',
+              'query': query,
+              'limit': limit,
+              'offset': 0,
+            },
+            options: Options(headers: {'Authorization': 'Bearer $token'}),
+          );
+        } on DioException catch (error) {
+          if (error.response?.statusCode != 401) rethrow;
+          _catalogToken = null;
+          _catalogTokenExpiresAt = null;
+          token = await _catalogAppToken();
+          response = await _dio.get<dynamic>(
+            endpoint,
+            queryParameters: {
+              'countryCode': 'US',
+              'query': query,
+              'limit': limit,
+              'offset': 0,
+            },
+            options: Options(headers: {'Authorization': 'Bearer $token'}),
+          );
+        }
+        final payload = response.data;
+        if (payload is! Map || payload['items'] is! List) {
+          throw const ProviderSearchException(
+            'The catalog returned an unsupported search response.',
+          );
+        }
+        return _maps(payload['items'])
+            .take(limit)
+            .map((item) => _mapTrack(item, endpoint))
+            .toList(growable: false);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw ProviderSearchException(
+      'Direct catalog search failed: ${lastError ?? 'unknown error'}',
+    );
+  }
+
+  Future<String> _catalogAppToken() async {
+    final now = DateTime.now();
+    final cached = _catalogToken;
+    if (cached != null && (_catalogTokenExpiresAt?.isAfter(now) ?? false)) {
+      return cached;
+    }
+    final request = _catalogTokenRequest ??= _requestCatalogAppToken(now);
+    try {
+      return await request;
+    } finally {
+      if (identical(_catalogTokenRequest, request)) {
+        _catalogTokenRequest = null;
+      }
+    }
+  }
+
+  Future<String> _requestCatalogAppToken(DateTime requestedAt) async {
+    final basic = base64Encode(
+      utf8.encode('$_catalogClientId:$_catalogClientSecret'),
+    );
+    final response = await _dio.post<dynamic>(
+      'https://auth.tidal.com/v1/oauth2/token',
+      data: {
+        'client_id': _catalogClientId,
+        'client_secret': _catalogClientSecret,
+        'grant_type': 'client_credentials',
+      },
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        headers: {'Authorization': 'Basic $basic'},
+      ),
+    );
+    final data = response.data;
+    if (data is! Map || data['access_token'] == null) {
+      throw const ProviderSearchException(
+        'The catalog did not issue an application token.',
+      );
+    }
+    final token = data['access_token'].toString();
+    final expiresIn = (data['expires_in'] as num?)?.toInt() ?? 3600;
+    _catalogToken = token;
+    _catalogTokenExpiresAt = requestedAt.add(
+      Duration(seconds: (expiresIn - 60).clamp(60, 86400)),
+    );
+    return token;
   }
 
   static String _normalize(String query) =>
@@ -132,8 +259,9 @@ class ProviderSearchService {
   static TrackSummary _mapTrack(Map<String, dynamic> item, String instance) {
     final albumValue = item['album'];
     final album = albumValue is Map ? albumValue['title'] : albumValue;
-    final vibrantColor =
-        albumValue is Map ? albumValue['vibrantColor']?.toString() : null;
+    final vibrantColor = albumValue is Map
+        ? albumValue['vibrantColor']?.toString()
+        : null;
     final artist = _extractArtist(item);
     final artworkUrl = _resolveArtworkUrl(item, instance);
     final year = _extractYear(item);
@@ -153,8 +281,8 @@ class ProviderSearchService {
       quality: quality,
       year: year,
       trackNumber: (item['trackNumber'] as num?)?.toInt(),
-      discNumber:
-          (item['volumeNumber'] as num? ?? item['discNumber'] as num?)?.toInt(),
+      discNumber: (item['volumeNumber'] as num? ?? item['discNumber'] as num?)
+          ?.toInt(),
       bpm: (item['bpm'] as num?)?.round(),
       key: key,
       isrc: item['isrc']?.toString(),
@@ -190,7 +318,8 @@ class ProviderSearchService {
     String instance,
   ) {
     final albumValue = item['album'];
-    final cover = (albumValue is Map ? albumValue['cover'] : null) ??
+    final cover =
+        (albumValue is Map ? albumValue['cover'] : null) ??
         item['cover'] ??
         item['picture'] ??
         (item['artist'] is Map ? item['artist']['picture'] : null);
@@ -209,18 +338,18 @@ class ProviderSearchService {
       return item['year'].toString().trim();
     }
     if (item['releaseDate'] != null) {
-      final match =
-          RegExp(r'\b(19\d{2}|20\d{2})\b').firstMatch(item['releaseDate'].toString());
+      final match = RegExp(r'\b(19\d{2}|20\d{2})\b')
+          .firstMatch(item['releaseDate'].toString());
       if (match != null) return match.group(1);
     }
     if (item['streamStartDate'] != null) {
-      final match =
-          RegExp(r'\b(19\d{2}|20\d{2})\b').firstMatch(item['streamStartDate'].toString());
+      final match = RegExp(r'\b(19\d{2}|20\d{2})\b')
+          .firstMatch(item['streamStartDate'].toString());
       if (match != null) return match.group(1);
     }
     if (item['copyright'] != null) {
-      final match =
-          RegExp(r'\b(19\d{2}|20\d{2})\b').firstMatch(item['copyright'].toString());
+      final match = RegExp(r'\b(19\d{2}|20\d{2})\b')
+          .firstMatch(item['copyright'].toString());
       if (match != null) return match.group(1);
     }
     return null;

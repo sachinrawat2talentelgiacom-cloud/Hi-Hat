@@ -8,7 +8,6 @@ import '../../services/download_service.dart';
 import '../../services/provider_search_service.dart';
 import '../../services/track_playback_coordinator.dart';
 import '../../widgets/track_artwork.dart';
-import '../browser_acquisition/acquisition_dock.dart';
 import 'search_controller.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -34,129 +33,127 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final search = ref.watch(searchControllerProvider);
-    return Stack(
-      children: [
-        CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 38,
-                  vertical: 24,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    final hasQuery = controller.text.trim().isNotEmpty;
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 38,
+              vertical: 24,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Hi Hat',
-                          style: Theme.of(context).textTheme.headlineLarge,
-                        ),
-                        const Spacer(),
-                        Semantics(
-                          label: 'Provider connection status',
-                          child: const _SignalMark(),
-                        ),
-                      ],
+                    Text(
+                      'Search',
+                      style: Theme.of(context).textTheme.headlineLarge,
                     ),
-                    const SizedBox(height: 54),
-                    TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      autofocus: MediaQuery.sizeOf(context).width >= 980,
-                      style: Theme.of(context).textTheme.displayMedium,
-                      textInputAction: TextInputAction.search,
-                      decoration: InputDecoration(
-                        hintText: 'Search for a song',
-                        prefixIcon: const Padding(
-                          padding: EdgeInsets.only(right: 18),
-                          child: Icon(Icons.search, size: 36),
-                        ),
-                        prefixIconConstraints: const BoxConstraints(
-                          minWidth: 48,
-                          minHeight: 48,
-                        ),
-                      ),
-                      onChanged: (value) {
-                        debounce?.cancel();
-                        debounce = Timer(const Duration(seconds: 2), () {
-                          ref.read(searchControllerProvider.notifier).search(value);
-                        });
-                      },
-                      onSubmitted: (value) =>
-                          ref.read(searchControllerProvider.notifier).search(value),
+                    const Spacer(),
+                    Semantics(
+                      label: 'Provider connection status',
+                      child: const _SignalMark(),
                     ),
-                    const SizedBox(height: 22),
-                    const _CalibrationLine(),
-                    const SizedBox(height: 32),
                   ],
                 ),
-              ),
+                const SizedBox(height: 54),
+                TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  autofocus: MediaQuery.sizeOf(context).width >= 980,
+                  style: Theme.of(context).textTheme.displayMedium,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search for a song',
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.only(right: 18),
+                      child: Icon(Icons.search, size: 36),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {});
+                    debounce?.cancel();
+                    if (value.trim().isEmpty) {
+                      ref.read(searchControllerProvider.notifier).cancel();
+                      return;
+                    }
+                    debounce = Timer(const Duration(seconds: 2), () {
+                      ref.read(searchControllerProvider.notifier).search(value);
+                    });
+                  },
+                  onSubmitted: (value) =>
+                      ref.read(searchControllerProvider.notifier).search(value),
+                ),
+                const SizedBox(height: 22),
+                const _CalibrationLine(),
+                const SizedBox(height: 32),
+              ],
             ),
-            search.when(
-              loading: () => const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (error, _) {
-                final providerUnavailable = error is ProviderSearchException;
-                return SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _SearchMessage(
-                    icon: Icons.cloud_off_outlined,
-                    title: providerUnavailable
-                        ? 'Search source did not respond'
-                        : 'Search could not be completed',
-                    body: providerUnavailable
-                        ? 'Every configured music source is currently unavailable. Your local library and offline playback still work.'
-                        : 'Try again shortly. Your local library remains available.',
-                    action: FilledButton.tonalIcon(
-                      onPressed: () => ref
-                          .read(searchControllerProvider.notifier)
-                          .search(controller.text),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Try again'),
-                    ),
-                  ),
-                );
-              },
-              data: (results) {
-                if (results.isEmpty) {
-                  return SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: _SearchMessage(
-                      icon: controller.text.isEmpty
-                          ? Icons.graphic_eq
-                          : Icons.search_off,
-                      title: controller.text.isEmpty
-                          ? 'One search. One local copy.'
-                          : 'No tracks found',
-                      body: controller.text.isEmpty
-                          ? 'Find a track, verify the lossless source, and keep it on this device.'
-                          : 'Try a different song, artist, or album name.',
-                    ),
-                  );
-                }
-                return SliverPadding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 38,
-                  ),
-                  sliver: SliverList.separated(
-                    itemCount: results.length,
-                    separatorBuilder: (_, _) => const Divider(indent: 82),
-                    itemBuilder: (context, index) => TrackResultTile(
-                      track: results[index],
-                      onPlay: () => _play(results[index]),
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 36)),
-          ],
+          ),
         ),
-        const AcquisitionDock(),
+        search.when(
+          loading: () => const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) {
+            final providerUnavailable = error is ProviderSearchException;
+            return SliverFillRemaining(
+              hasScrollBody: false,
+              child: _SearchMessage(
+                icon: Icons.cloud_off_outlined,
+                title: providerUnavailable
+                    ? 'Search source did not respond'
+                    : 'Search could not be completed',
+                body: providerUnavailable
+                    ? 'Every configured music source is currently unavailable. Your local library and offline playback still work.'
+                    : 'Try again shortly. Your local library remains available.',
+                action: FilledButton.tonalIcon(
+                  onPressed: () => ref
+                      .read(searchControllerProvider.notifier)
+                      .search(controller.text),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
+              ),
+            );
+          },
+          data: (results) {
+            if (results.isEmpty) {
+              return SliverFillRemaining(
+                hasScrollBody: false,
+                child: _SearchMessage(
+                  icon: hasQuery ? Icons.search_off : Icons.graphic_eq,
+                  title: hasQuery ? 'No tracks found' : 'One search. One local copy.',
+                  body: hasQuery
+                      ? 'Try a different song, artist, or album name.'
+                      : 'Find a track, verify the lossless source, and keep it on this device.',
+                ),
+              );
+            }
+            return SliverPadding(
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 38,
+              ),
+              sliver: SliverList.separated(
+                itemCount: results.length,
+                separatorBuilder: (_, _) => const Divider(indent: 82),
+                itemBuilder: (context, index) => TrackResultTile(
+                  track: results[index],
+                  onPlay: () => _play(results[index]),
+                ),
+              ),
+            );
+          },
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 36)),
       ],
     );
   }
@@ -172,9 +169,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     } else {
       final transfer = ref.read(downloadServiceProvider).forTrack(track.id);
       if (transfer?.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(transfer!.error!)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(transfer!.error!)));
       }
     }
   }
@@ -262,7 +258,9 @@ class TrackResultTile extends ConsumerWidget {
                             '  ·  ',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Theme.of(context).colorScheme.outlineVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant,
                             ),
                           ),
                         ],
@@ -273,19 +271,23 @@ class TrackResultTile extends ConsumerWidget {
                             color: Theme.of(context).colorScheme.outline,
                           ),
                         ),
-                        if (track.tempoDisplay != null || track.musicalKeyDisplay != null) ...[
+                        if (track.tempoDisplay != null ||
+                            track.musicalKeyDisplay != null) ...[
                           Text(
                             '  ·  ',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Theme.of(context).colorScheme.outlineVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant,
                             ),
                           ),
                           Flexible(
                             child: Text(
-                              [track.tempoDisplay, track.musicalKeyDisplay]
-                                  .whereType<String>()
-                                  .join(' · '),
+                              [
+                                track.tempoDisplay,
+                                track.musicalKeyDisplay,
+                              ].whereType<String>().join(' · '),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

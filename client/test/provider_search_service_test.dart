@@ -9,8 +9,8 @@ void main() {
 
   test('provider search starts with the current Monochrome catalog API', () {
     expect(
-      ProviderSearchService.instances.first,
-      'https://lol.samidy.workers.dev',
+      ProviderSearchService.catalogSearchEndpoints.first,
+      'https://api.tidal.com/v1/search/tracks',
     );
   });
 

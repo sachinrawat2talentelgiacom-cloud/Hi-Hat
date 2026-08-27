@@ -44,16 +44,15 @@ class TransferState {
     TrackSummary? track,
     bool? isMinimized,
     bool? isMaximized,
-  }) =>
-      TransferState(
-        trackId: trackId ?? this.trackId,
-        phase: phase ?? this.phase,
-        progress: progress ?? this.progress,
-        error: error ?? this.error,
-        track: track ?? this.track,
-        isMinimized: isMinimized ?? this.isMinimized,
-        isMaximized: isMaximized ?? this.isMaximized,
-      );
+  }) => TransferState(
+    trackId: trackId ?? this.trackId,
+    phase: phase ?? this.phase,
+    progress: progress ?? this.progress,
+    error: error ?? this.error,
+    track: track ?? this.track,
+    isMinimized: isMinimized ?? this.isMinimized,
+    isMaximized: isMaximized ?? this.isMaximized,
+  );
 }
 
 class DownloadsState {
@@ -92,11 +91,10 @@ class DownloadsState {
   DownloadsState copyWith({
     Map<String, TransferState>? transfers,
     String? focusedTrackId,
-  }) =>
-      DownloadsState(
-        transfers: transfers ?? this.transfers,
-        focusedTrackId: focusedTrackId ?? this.focusedTrackId,
-      );
+  }) => DownloadsState(
+    transfers: transfers ?? this.transfers,
+    focusedTrackId: focusedTrackId ?? this.focusedTrackId,
+  );
 }
 
 class DownloadService extends StateNotifier<DownloadsState> {
@@ -114,12 +112,9 @@ class DownloadService extends StateNotifier<DownloadsState> {
       phase: 'OPENING_PROVIDER',
       progress: 0.02,
       track: track ?? current?.track,
-      isMinimized: false,
+      isMinimized: true,
     );
-    state = DownloadsState(
-      transfers: nextTransfers,
-      focusedTrackId: trackId,
-    );
+    state = DownloadsState(transfers: nextTransfers, focusedTrackId: trackId);
   }
 
   void update(
@@ -172,13 +167,14 @@ class DownloadService extends StateNotifier<DownloadsState> {
 
   void cancel(String trackId) {
     final current = state.forTrack(trackId);
+    if (current == null) return;
     final nextTransfers = Map<String, TransferState>.from(state.transfers);
     nextTransfers[trackId] = TransferState(
       trackId: trackId,
       phase: 'CANCELLED',
-      track: current?.track,
-      isMinimized: current?.isMinimized ?? false,
-      isMaximized: current?.isMaximized ?? false,
+      track: current.track,
+      isMinimized: current.isMinimized,
+      isMaximized: current.isMaximized,
     );
     state = state.copyWith(transfers: nextTransfers);
   }
@@ -204,10 +200,7 @@ class DownloadService extends StateNotifier<DownloadsState> {
     if (current == null) return;
     final nextTransfers = Map<String, TransferState>.from(state.transfers);
     nextTransfers[trackId] = current.copyWith(isMinimized: false);
-    state = state.copyWith(
-      transfers: nextTransfers,
-      focusedTrackId: trackId,
-    );
+    state = state.copyWith(transfers: nextTransfers, focusedTrackId: trackId);
   }
 
   void remove(String trackId) {
@@ -215,8 +208,9 @@ class DownloadService extends StateNotifier<DownloadsState> {
       ..remove(trackId);
     state = DownloadsState(
       transfers: nextTransfers,
-      focusedTrackId:
-          state.focusedTrackId == trackId ? null : state.focusedTrackId,
+      focusedTrackId: state.focusedTrackId == trackId
+          ? null
+          : state.focusedTrackId,
     );
   }
 }

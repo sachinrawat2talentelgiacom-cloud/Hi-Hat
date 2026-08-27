@@ -68,6 +68,7 @@ class _BrowserAcquisitionScreenState
   bool debugPreferenceLoaded = false;
   bool disposing = false;
   bool finished = false;
+  bool cancelled = false;
   double lastReportedProgress = 0;
   double? providerDurationSeconds;
   String? expectedFilename;
@@ -77,6 +78,7 @@ class _BrowserAcquisitionScreenState
   Set<String> existingDownloads = {};
   late Future<void> initialization;
   InAppWebViewController? webViewController;
+  CancelToken? httpCancelToken;
   BrowserAcquisitionLog? acquisitionLog;
 
   String get searchQuery => <String?>[
@@ -134,6 +136,7 @@ class _BrowserAcquisitionScreenState
     monitor?.cancel();
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
+    httpCancelToken?.cancel('Acquisition disposed.');
     acquisitionLog?.close();
     super.dispose();
   }
@@ -153,6 +156,7 @@ class _BrowserAcquisitionScreenState
   }
 
   Future<void> _onLoaded(InAppWebViewController controller) async {
+    if (cancelled) return;
     await acquisitionLog?.event('AUTOMATION_TICK', {
       'downloadRequested': downloadRequested,
       'automationRunning': automationRunning,
@@ -181,6 +185,7 @@ class _BrowserAcquisitionScreenState
         ref
             .read(downloadServiceProvider.notifier)
             .update(widget.track.id, 'AUTH_REQUIRED', progress: 0.04);
+        ref.read(downloadServiceProvider.notifier).focus(widget.track.id);
       }
       await acquisitionLog?.event('AUTH_OR_NAVIGATION_REQUIRED', {
         'url': _safeUrl(current),
@@ -327,6 +332,7 @@ class _BrowserAcquisitionScreenState
         ref
             .read(downloadServiceProvider.notifier)
             .update(widget.track.id, 'AUTH_REQUIRED', progress: 0.04);
+        ref.read(downloadServiceProvider.notifier).focus(widget.track.id);
       } else if (state?.startsWith('started:') ?? false) {
         await acquisitionLog?.event('DOWNLOAD_BUTTON_CLICKED', {
           'action': state,
@@ -339,6 +345,9 @@ class _BrowserAcquisitionScreenState
         ref
             .read(downloadServiceProvider.notifier)
             .update(widget.track.id, 'STARTING_DOWNLOAD', progress: 0.1);
+        ref
+            .read(downloadServiceProvider.notifier)
+            .setMinimized(widget.track.id, true);
         downloadStartDeadline?.cancel();
         downloadStartDeadline = Timer(const Duration(minutes: 2), () {
           if (!mounted || phase != BrowserAcquisitionPhase.startingDownload) {
@@ -398,6 +407,7 @@ class _BrowserAcquisitionScreenState
   Future<DownloadStartResponse?> _onDownloadStarted(
     DownloadStartRequest request,
   ) async {
+    if (cancelled) return null;
     downloadRequested = true;
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
@@ -418,6 +428,7 @@ class _BrowserAcquisitionScreenState
     expectedLength = request.contentLength > 0 ? request.contentLength : null;
 
     final root = await getApplicationSupportDirectory();
+    if (cancelled) return null;
     final folder = Directory(
       p.join(root.path, 'Acquisitions', widget.track.providerTrackId),
     );
@@ -454,9 +465,11 @@ class _BrowserAcquisitionScreenState
   }
 
   Future<void> _extractAndSaveBlob(String blobUrl, File destination) async {
+    if (cancelled) return;
     try {
       await acquisitionLog?.event('EXTRACTING_BLOB', {'blobUrl': blobUrl});
-      final js = '''
+      final js =
+          '''
         (async () => {
           try {
             const response = await fetch(${jsonEncode(blobUrl)});
@@ -473,6 +486,7 @@ class _BrowserAcquisitionScreenState
         })();
       ''';
       final result = await webViewController?.evaluateJavascript(source: js);
+      if (cancelled) return;
       final dataString = result?.toString().replaceAll('"', '');
       if (dataString != null && dataString.startsWith('data:')) {
         await _saveDataUri(dataString, destination);
@@ -490,13 +504,17 @@ class _BrowserAcquisitionScreenState
   }
 
   Future<void> _saveDataUri(String dataUri, File destination) async {
+    if (cancelled) return;
     try {
       final commaIndex = dataUri.indexOf(',');
       if (commaIndex == -1) return;
       final base64String = dataUri.substring(commaIndex + 1);
       final bytes = base64Decode(base64String);
+      if (cancelled) return;
       await destination.parent.create(recursive: true);
+      if (cancelled) return;
       await destination.writeAsBytes(bytes, flush: true);
+      if (cancelled) return;
       await acquisitionLog?.event('DOWNLOAD_SAVED_FROM_DATA', {
         'path': destination.path,
         'bytes': bytes.length,
@@ -516,11 +534,14 @@ class _BrowserAcquisitionScreenState
     File destination, {
     String? userAgent,
   }) async {
+    if (cancelled) return;
     try {
       await acquisitionLog?.event('DOWNLOADING_HTTP_URI', {
         'url': _safeUrl(uri),
       });
       final dio = Dio();
+      final cancelToken = CancelToken();
+      httpCancelToken = cancelToken;
       final options = Options(
         headers: {
           if (userAgent != null && userAgent.isNotEmpty)
@@ -531,10 +552,13 @@ class _BrowserAcquisitionScreenState
       final response = await dio.get<List<int>>(
         uri.toString(),
         options: options,
+        cancelToken: cancelToken,
       );
-      if (response.data != null) {
+      if (!cancelled && response.data != null) {
         await destination.parent.create(recursive: true);
+        if (cancelled) return;
         await destination.writeAsBytes(response.data!, flush: true);
+        if (cancelled) return;
         await acquisitionLog?.event('DOWNLOAD_SAVED_FROM_HTTP', {
           'path': destination.path,
           'bytes': response.data!.length,
@@ -542,7 +566,14 @@ class _BrowserAcquisitionScreenState
         monitor?.cancel();
         await _finalize(destination);
       }
+    } on DioException catch (e, stack) {
+      if (CancelToken.isCancel(e) || cancelled) return;
+      await acquisitionLog?.event('HTTP_DOWNLOAD_ERROR', {
+        'error': e.toString(),
+        'stack': stack.toString(),
+      });
     } catch (e, stack) {
+      if (cancelled) return;
       await acquisitionLog?.event('HTTP_DOWNLOAD_ERROR', {
         'error': e.toString(),
         'stack': stack.toString(),
@@ -555,6 +586,7 @@ class _BrowserAcquisitionScreenState
     String? filename,
     String? mimeType,
   }) async {
+    if (cancelled) return;
     downloadRequested = true;
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
@@ -566,6 +598,7 @@ class _BrowserAcquisitionScreenState
         .read(downloadServiceProvider.notifier)
         .update(widget.track.id, 'DOWNLOADING', progress: 0.88);
     final root = await getApplicationSupportDirectory();
+    if (cancelled) return;
     final folder = Directory(
       p.join(root.path, 'Acquisitions', widget.track.providerTrackId),
     );
@@ -576,7 +609,7 @@ class _BrowserAcquisitionScreenState
   }
 
   Future<void> _scanForCompletedFile() async {
-    if (scanRunning) return;
+    if (cancelled || scanRunning) return;
     scanRunning = true;
     try {
       if (DateTime.now().difference(started) > const Duration(minutes: 3)) {
@@ -655,6 +688,7 @@ class _BrowserAcquisitionScreenState
   }
 
   Future<void> _finalize(File file) async {
+    if (cancelled) return;
     try {
       await acquisitionLog?.event('IMPORT_STARTED', {
         'path': file.path,
@@ -667,13 +701,13 @@ class _BrowserAcquisitionScreenState
       final local = await ref
           .read(localImportServiceProvider)
           .importForTrack(file, widget.track);
-      if (!mounted) return;
+      if (!mounted || cancelled) return;
       setState(() => phase = BrowserAcquisitionPhase.finalizing);
       ref
           .read(downloadServiceProvider.notifier)
           .update(widget.track.id, 'FINALIZING', progress: 0.98);
       await Future<void>.delayed(const Duration(milliseconds: 250));
-      if (!mounted) return;
+      if (!mounted || cancelled) return;
       setState(() => phase = BrowserAcquisitionPhase.ready);
       ref.read(downloadServiceProvider.notifier).complete(widget.track.id);
       await acquisitionLog?.event('ACQUISITION_COMPLETE', {
@@ -681,7 +715,7 @@ class _BrowserAcquisitionScreenState
       });
       completedTrack = local;
       await Future<void>.delayed(const Duration(milliseconds: 350));
-      if (!mounted) return;
+      if (!mounted || cancelled) return;
       _finish(local);
     } catch (error) {
       await acquisitionLog?.event('IMPORT_FAILED', {'error': error.toString()});
@@ -703,6 +737,43 @@ class _BrowserAcquisitionScreenState
     if (finished) return;
     finished = true;
     widget.onFinished(track);
+  }
+
+  Future<void> _cancelAndFinish() async {
+    if (cancelled || finished) return;
+    cancelled = true;
+    monitor?.cancel();
+    automationTimer?.cancel();
+    downloadStartDeadline?.cancel();
+    httpCancelToken?.cancel('Cancelled by the user.');
+    final controller = webViewController;
+    webViewController = null;
+    try {
+      await controller?.stopLoading().timeout(const Duration(seconds: 1));
+    } catch (_) {
+      // The platform view may already be closing.
+    }
+    final partial = controlledDownloadFile;
+    var partialDeleted = false;
+    if (partial != null) {
+      try {
+        if (await partial.exists()) await partial.delete();
+        partialDeleted = true;
+      } catch (_) {
+        // A platform download may still be releasing the file handle.
+      }
+    }
+    final service = ref.read(downloadServiceProvider.notifier);
+    _finish(null);
+    if (partial != null && !partialDeleted) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      try {
+        if (await partial.exists()) await partial.delete();
+      } catch (_) {
+        // The download has stopped; a locked file can be cleaned next launch.
+      }
+    }
+    service.remove(widget.track.id);
   }
 
   void _onProviderConsole(ConsoleMessage message) {
@@ -751,7 +822,7 @@ class _BrowserAcquisitionScreenState
       controller.addJavaScriptHandler(
         handlerName: 'onBlobDownload',
         callback: (args) async {
-          if (args.isEmpty) return null;
+          if (cancelled || args.isEmpty) return null;
           final base64Data = args[0] as String;
           final filename = args.length > 1 ? args[1] as String? : null;
           final mimeType = args.length > 2 ? args[2] as String? : null;
@@ -768,10 +839,12 @@ class _BrowserAcquisitionScreenState
     onLoadStart: (_, url) =>
         acquisitionLog?.event('NAVIGATION_STARTED', {'url': _safeUrl(url)}),
     onLoadStop: (controller, url) async {
+      if (cancelled) return;
       await acquisitionLog?.event('NAVIGATION_FINISHED', {
         'url': _safeUrl(url),
       });
-      await controller.evaluateJavascript(source: '''
+      await controller.evaluateJavascript(
+        source: '''
         (() => {
           if (window.__hihat_download_hooked) return;
           window.__hihat_download_hooked = true;
@@ -809,7 +882,8 @@ class _BrowserAcquisitionScreenState
             return originalClick.apply(this, arguments);
           };
         })();
-      ''');
+      ''',
+      );
       await _onLoaded(controller);
     },
     onProgressChanged: (_, progress) {
@@ -840,10 +914,19 @@ class _BrowserAcquisitionScreenState
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(
+      downloadServiceProvider.select(
+        (state) => state.forTrack(widget.track.id)?.phase,
+      ),
+      (_, next) {
+        if (next == 'CANCELLED') unawaited(_cancelAndFinish());
+      },
+    );
     if (!debugPreferenceLoaded) return const SizedBox.shrink();
 
-    final transfer =
-        ref.watch(downloadServiceProvider).forTrack(widget.track.id);
+    final transfer = ref
+        .watch(downloadServiceProvider)
+        .forTrack(widget.track.id);
     final isMinimized = transfer?.isMinimized ?? false;
     final isMaximized = transfer?.isMaximized ?? false;
 
@@ -854,8 +937,8 @@ class _BrowserAcquisitionScreenState
           future: initialization,
           builder: (_, snapshot) =>
               snapshot.connectionState == ConnectionState.done
-                  ? _buildProviderWebView()
-                  : const SizedBox.shrink(),
+              ? _buildProviderWebView()
+              : const SizedBox.shrink(),
         ),
       );
     }
@@ -867,18 +950,16 @@ class _BrowserAcquisitionScreenState
       color: Theme.of(context).colorScheme.surfaceContainerHigh,
       elevation: 16,
       shadowColor: Colors.black87,
-      borderRadius:
-          isMaximized ? BorderRadius.zero : BorderRadius.circular(16),
+      borderRadius: isMaximized ? BorderRadius.zero : BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius:
-              isMaximized ? BorderRadius.zero : BorderRadius.circular(16),
+          borderRadius: isMaximized
+              ? BorderRadius.zero
+              : BorderRadius.circular(16),
           border: isMaximized
               ? null
               : Border.all(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .outlineVariant
+                  color: Theme.of(context).colorScheme.outlineVariant
                       .withValues(alpha: 0.5),
                   width: 1,
                 ),
@@ -887,8 +968,9 @@ class _BrowserAcquisitionScreenState
         child: Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
-            backgroundColor:
-                Theme.of(context).colorScheme.surfaceContainerHighest,
+            backgroundColor: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest,
             elevation: 0,
             leading: Padding(
               padding: const EdgeInsets.all(8),
@@ -979,7 +1061,6 @@ class _BrowserAcquisitionScreenState
                   ref
                       .read(downloadServiceProvider.notifier)
                       .cancel(widget.track.id);
-                  _finish(null);
                 },
                 icon: const Icon(Icons.close_rounded, size: 20),
               ),
@@ -1021,14 +1102,11 @@ class _BrowserAcquisitionScreenState
                                   ? 'The provider browser is ready for verification.'
                                   : 'Searching and acquiring in Monochrome…',
                               textAlign: TextAlign.center,
-                              style:
-                                  Theme.of(context).textTheme.headlineSmall,
+                              style: Theme.of(context).textTheme.headlineSmall,
                             ),
                           ),
                         ),
-                        Positioned.fill(
-                          child: _buildProviderWebView(),
-                        ),
+                        Positioned.fill(child: _buildProviderWebView()),
                       ],
                     );
                   },
@@ -1045,10 +1123,14 @@ class _BrowserAcquisitionScreenState
       return windowWidget;
     }
 
-    final windowWidth =
-        (screenSize.width * (isCompact ? 0.95 : 0.75)).clamp(360.0, 920.0);
-    final windowHeight =
-        (screenSize.height * (isCompact ? 0.88 : 0.75)).clamp(420.0, 720.0);
+    final windowWidth = (screenSize.width * (isCompact ? 0.95 : 0.75)).clamp(
+      360.0,
+      920.0,
+    );
+    final windowHeight = (screenSize.height * (isCompact ? 0.88 : 0.75)).clamp(
+      420.0,
+      720.0,
+    );
 
     return Material(
       color: Colors.black54,
