@@ -9,7 +9,7 @@ import '../services/track_playback_coordinator.dart';
 import '../features/player/song_actions.dart';
 import 'track_artwork.dart';
 
-/// App Soundwave Brand Logo matching the reference MelodyMix waveform header
+/// Hi Hat's compact soundwave brand mark.
 class SoundwaveLogo extends StatelessWidget {
   const SoundwaveLogo({
     super.key,
@@ -130,6 +130,7 @@ class HeroBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).colorScheme;
     final width = MediaQuery.sizeOf(context).width;
     final isCompact = width < 720;
     final artSize = isCompact ? 130.0 : 200.0;
@@ -137,16 +138,8 @@ class HeroBanner extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: const Color(0xFF14161D),
-        border: Border.all(color: const Color(0xFF232530), width: 1),
-        gradient: const RadialGradient(
-          center: Alignment(0.85, -0.2),
-          radius: 1.4,
-          colors: [
-            Color(0x22FF5E4D),
-            Colors.transparent,
-          ],
-        ),
+        color: colors.surfaceContainer,
+        border: Border.all(color: colors.outlineVariant, width: 1),
       ),
       padding: EdgeInsets.all(isCompact ? 16 : 24),
       child: Stack(
@@ -251,6 +244,7 @@ class HeroBanner extends ConsumerWidget {
                                   fontSize: 13,
                                   color: HiHatColors.trace,
                                   fontWeight: FontWeight.w500,
+                                  fontFeatures: [FontFeature.tabularFigures()],
                                 ),
                               ),
                             ],
@@ -291,7 +285,7 @@ class HeroBanner extends ConsumerWidget {
                             onPressed: onPlayAll,
                             style: FilledButton.styleFrom(
                               backgroundColor: HiHatColors.coral,
-                              foregroundColor: Colors.white,
+                              foregroundColor: HiHatColors.onSignal,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 18,
                                 vertical: 10,
@@ -314,8 +308,9 @@ class HeroBanner extends ConsumerWidget {
                               side: BorderSide(
                                 color: HiHatColors.coral.withValues(alpha: 0.6),
                               ),
-                              backgroundColor:
-                                  HiHatColors.coral.withValues(alpha: 0.1),
+                              backgroundColor: HiHatColors.coral.withValues(
+                                alpha: 0.1,
+                              ),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 18,
                                 vertical: 10,
@@ -343,7 +338,7 @@ class HeroBanner extends ConsumerWidget {
                               size: 18,
                               color: HiHatColors.coral,
                             ),
-                            label: const Text('Reload Feed'),
+                            label: const Text('Reload feed'),
                           ),
                         if (onMore != null)
                           TextButton.icon(
@@ -501,14 +496,17 @@ class _TrackTableRowState extends ConsumerState<TrackTableRow> {
   @override
   Widget build(BuildContext context) {
     final playback = ref.watch(audioEngineProvider);
-    final transfer = ref.watch(downloadServiceProvider).forTrack(widget.track.id);
+    final transfer = ref
+        .watch(downloadServiceProvider)
+        .forTrack(widget.track.id);
     final isAcquiring = transfer?.isActive ?? false;
     final isCurrent = playback.track?.id == widget.track.id;
     final width = MediaQuery.sizeOf(context).width;
     final showPlays = width >= 640;
 
     // Derived secondary column text (Plays, Album, or Quality)
-    final secondary = widget.secondaryText ??
+    final secondary =
+        widget.secondaryText ??
         (widget.track.album != null && widget.track.album!.isNotEmpty
             ? widget.track.album!
             : widget.track.quality.display);
@@ -520,17 +518,18 @@ class _TrackTableRowState extends ConsumerState<TrackTableRow> {
         color: isHovered
             ? const Color(0xFF1B1D26)
             : isCurrent
-                ? const Color(0xFF171922)
-                : Colors.transparent,
+            ? const Color(0xFF171922)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
+          onSecondaryTapUp: (details) =>
+              _showContextMenu(context, details.globalPosition),
           onLongPress: () => _showContextMenu(context, null),
           onTap: isAcquiring
               ? () => ref
-                  .read(downloadServiceProvider.notifier)
-                  .focus(widget.track.id)
+                    .read(downloadServiceProvider.notifier)
+                    .focus(widget.track.id)
               : widget.onTap ?? () => _play(context, ref, widget.track),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -647,8 +646,11 @@ class _TrackTableRowState extends ConsumerState<TrackTableRow> {
   void _showContextMenu(BuildContext context, Offset? position) {
     final RenderBox? overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
-    final targetPosition = position ??
-        (context.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero) ??
+    final targetPosition =
+        position ??
+        (context.findRenderObject() as RenderBox?)?.localToGlobal(
+          Offset.zero,
+        ) ??
         Offset.zero;
 
     showMenu<void>(
@@ -659,7 +661,8 @@ class _TrackTableRowState extends ConsumerState<TrackTableRow> {
       ),
       items: [
         PopupMenuItem<void>(
-          onTap: () => ref.read(audioEngineProvider.notifier).addToQueue(widget.track),
+          onTap: () =>
+              ref.read(audioEngineProvider.notifier).addToQueue(widget.track),
           child: const ListTile(
             dense: true,
             leading: Icon(Icons.queue_music_rounded, size: 18),
@@ -695,11 +698,7 @@ class _TrackTableRowState extends ConsumerState<TrackTableRow> {
 
 /// Large Cover Art Card Block for Home discovery songs
 class TrackCardBlock extends ConsumerStatefulWidget {
-  const TrackCardBlock({
-    super.key,
-    required this.track,
-    required this.onTap,
-  });
+  const TrackCardBlock({super.key, required this.track, required this.onTap});
 
   final TrackSummary track;
   final VoidCallback onTap;
@@ -716,6 +715,7 @@ class _TrackCardBlockState extends ConsumerState<TrackCardBlock> {
     final playback = ref.watch(audioEngineProvider);
     final isCurrent = playback.track?.id == widget.track.id;
     final isPlaying = isCurrent && playback.playing;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -733,16 +733,21 @@ class _TrackCardBlockState extends ConsumerState<TrackCardBlock> {
           _showContextMenu(context, pos);
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+          duration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            color: _isHovered ? const Color(0xFF1B1D28) : const Color(0xFF13151D),
+            color: _isHovered
+                ? const Color(0xFF1B1D28)
+                : const Color(0xFF13151D),
             border: Border.all(
               color: isCurrent
                   ? HiHatColors.coral.withValues(alpha: 0.8)
                   : (_isHovered
-                      ? const Color(0xFF2E3244)
-                      : const Color(0xFF1E202B)),
+                        ? const Color(0xFF2E3244)
+                        : const Color(0xFF1E202B)),
               width: isCurrent ? 1.5 : 1,
             ),
           ),
@@ -758,36 +763,46 @@ class _TrackCardBlockState extends ConsumerState<TrackCardBlock> {
                     fit: StackFit.expand,
                     children: [
                       TrackArtwork(
-                        artworkUrl: widget.track.highResArtworkUrl ??
+                        artworkUrl:
+                            widget.track.highResArtworkUrl ??
                             widget.track.artworkUrl,
                         borderRadius: BorderRadius.circular(12),
                         iconSize: 48,
                       ),
                       // Floating play button on hover or when currently playing
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 200),
-                        bottom: (_isHovered || isPlaying) ? 8 : -45,
+                      Positioned(
+                        bottom: 8,
                         right: 8,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: (_isHovered || isPlaying) ? 1.0 : 0.0,
-                          child: Material(
-                            color: HiHatColors.coral,
-                            shape: const CircleBorder(),
-                            elevation: 6,
-                            shadowColor:
-                                HiHatColors.coral.withValues(alpha: 0.4),
-                            child: InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: widget.onTap,
-                              child: Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: Icon(
-                                  isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                  color: Colors.white,
-                                  size: 22,
+                        child: AnimatedSlide(
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 120),
+                          curve: Curves.easeOutCubic,
+                          offset: reduceMotion || _isHovered || isPlaying
+                              ? Offset.zero
+                              : const Offset(0, .25),
+                          child: AnimatedOpacity(
+                            duration: reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 120),
+                            curve: Curves.easeOutCubic,
+                            opacity: (_isHovered || isPlaying) ? 1.0 : 0.0,
+                            child: Material(
+                              color: HiHatColors.coral,
+                              shape: const CircleBorder(),
+                              elevation: 0,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: widget.onTap,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: Icon(
+                                    isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
                                 ),
                               ),
                             ),
@@ -860,9 +875,11 @@ class _TrackCardBlockState extends ConsumerState<TrackCardBlock> {
   void _showContextMenu(BuildContext context, Offset? position) {
     final RenderBox? overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
-    final targetPosition = position ??
-        (context.findRenderObject() as RenderBox?)
-            ?.localToGlobal(Offset.zero) ??
+    final targetPosition =
+        position ??
+        (context.findRenderObject() as RenderBox?)?.localToGlobal(
+          Offset.zero,
+        ) ??
         Offset.zero;
 
     showMenu<void>(
@@ -893,4 +910,3 @@ class _TrackCardBlockState extends ConsumerState<TrackCardBlock> {
     );
   }
 }
-

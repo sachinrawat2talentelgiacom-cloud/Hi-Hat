@@ -11,6 +11,8 @@ import '../../services/provider_search_service.dart';
 import '../../services/track_playback_coordinator.dart';
 import '../../widgets/app_widgets.dart';
 import '../../widgets/track_artwork.dart';
+import '../../widgets/hi_hat_surface.dart';
+import '../../widgets/brand_widgets.dart';
 import '../player/song_actions.dart';
 import 'search_controller.dart';
 import 'album_screen.dart';
@@ -67,54 +69,40 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: horizontal,
-              vertical: 20,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Search',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Semantics(
-                      label: 'Provider connection status',
-                      child: const _SignalMark(),
-                    ),
-                  ],
+                const HiHatEyebrow('Hi Hat / search'),
+                const SizedBox(height: 8),
+                Text(
+                  'Find. Verify. Own.',
+                  style: Theme.of(context).textTheme.displayMedium,
                 ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  height: 48,
+                SizedBox(height: isDesktop ? 36 : 24),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 64),
                   child: TextField(
                     controller: controller,
                     focusNode: focusNode,
                     autofocus: isDesktop,
-                    style: const TextStyle(fontSize: 15, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: isDesktop ? 34 : 27,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: -0.7,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText: 'Search songs, artists, and albums',
+                      hintText: 'Find a track, artist, or album',
                       hintStyle: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 27,
+                        fontWeight: FontWeight.w300,
                         color: HiHatColors.trace,
                       ),
                       prefixIcon: const Icon(
                         Icons.search_rounded,
-                        size: 22,
+                        size: 32,
                         color: HiHatColors.trace,
                       ),
                       suffixIcon: controller.text.isEmpty
@@ -135,21 +123,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 color: HiHatColors.trace,
                               ),
                             ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      filled: false,
+                      enabledBorder: const UnderlineInputBorder(
+                        borderSide: BorderSide(color: HiHatColors.cardBorder),
                       ),
-                      fillColor: const Color(0xFF151720),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide:
-                            const BorderSide(color: Color(0xFF262834)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide: const BorderSide(
-                          color: HiHatColors.coral,
-                          width: 1.5,
+                      focusedBorder: const UnderlineInputBorder(
+                        borderSide: BorderSide(
+                          color: HiHatColors.signal,
+                          width: 2,
                         ),
                       ),
                     ),
@@ -168,7 +150,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     onSubmitted: _searchAll,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                Text(
+                  hasQuery
+                      ? 'Searching the catalog and your local archive'
+                      : 'Find it once. Keep the verified file.',
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: HiHatColors.trace),
+                ),
+                const SizedBox(height: 18),
               ],
             ),
           ),
@@ -199,9 +189,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         final album = items[i];
                         return SizedBox(
                           width: 145,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => Navigator.push(
+                          child: HiSurface(
+                            role: HiSurfaceRole.quiet,
+                            semanticLabel:
+                                'Open album ${album.title} by ${album.artist}',
+                            onPressed: () => Navigator.push(
                               context,
                               MaterialPageRoute<void>(
                                 builder: (_) => AlbumScreen(album: album),
@@ -246,12 +238,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
         ),
         search.when(
-          loading: () => const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: CircularProgressIndicator(color: HiHatColors.coral),
-            ),
-          ),
+          loading: () =>
+              const SliverFillRemaining(child: TrackLedgerSkeleton()),
           error: (error, _) {
             final providerUnavailable = error is ProviderSearchException;
             return SliverFillRemaining(
@@ -530,26 +518,6 @@ class _ExplicitBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SignalMark extends StatelessWidget {
-  const _SignalMark();
-  @override
-  Widget build(BuildContext context) => Row(
-    children: const [
-      Icon(Icons.graphic_eq, color: HiHatColors.coral, size: 18),
-      SizedBox(width: 8),
-      Text(
-        'LOSSLESS FLAC',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-          color: HiHatColors.trace,
-        ),
-      ),
-    ],
-  );
 }
 
 class _SearchMessage extends StatelessWidget {

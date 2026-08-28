@@ -416,6 +416,7 @@ class AudioEngine extends StateNotifier<PlaybackState> {
     );
     await seek(Duration(milliseconds: targetMs));
   }
+
   Future<void> stop() => _player.stop();
   @override
   void dispose() {

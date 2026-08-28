@@ -9,10 +9,13 @@ import '../../services/artist_preferences_store.dart';
 import '../../services/audio_engine.dart';
 import '../../services/discovery_service.dart';
 import '../../services/download_service.dart';
+import '../../services/library_service.dart';
 import '../../services/provider_search_service.dart';
 import '../../services/track_playback_coordinator.dart';
 import '../../widgets/app_widgets.dart';
 import '../../widgets/track_artwork.dart';
+import '../../widgets/hi_hat_surface.dart';
+import '../../widgets/brand_widgets.dart';
 import '../player/song_actions.dart';
 import '../search/discovery_controller.dart';
 
@@ -29,6 +32,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final discovery = ref.watch(discoveryControllerProvider);
+    final playback = ref.watch(audioEngineProvider);
+    final library = ref.watch(libraryProvider);
+    final width = MediaQuery.sizeOf(context).width;
+    final horizontal = width < 700 ? 16.0 : 28.0;
     ref.listen<AsyncValue<List<TrackSummary>>>(discoveryControllerProvider, (
       _,
       next,
@@ -43,6 +50,71 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return CustomScrollView(
       slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(horizontal, 30, horizontal, 24),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const HiHatEyebrow('Hi Hat / home'),
+                const SizedBox(height: 8),
+                Text(
+                  'Listening now',
+                  style: Theme.of(context).textTheme.displayMedium,
+                ),
+                const SizedBox(height: 24),
+                _ListeningStage(playback: playback),
+              ],
+            ),
+          ),
+        ),
+        library.when(
+          loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+          error: (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+          data: (tracks) => tracks.isEmpty
+              ? const SliverToBoxAdapter(child: SizedBox.shrink())
+              : SliverMainAxisGroup(
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        16,
+                        horizontal,
+                        12,
+                      ),
+                      sliver: SliverToBoxAdapter(
+                        child: Row(
+                          children: [
+                            Text(
+                              'Ready locally',
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            const Spacer(),
+                            const HiHatStatusChip(
+                              label: 'Available offline',
+                              icon: Icons.offline_pin_outlined,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                      sliver: SliverList.builder(
+                        itemCount: tracks.length.clamp(0, 4),
+                        itemBuilder: (context, index) => TrackTableRow(
+                          track: tracks[index],
+                          secondaryText: tracks[index].quality.display,
+                          onTap: () => ref
+                              .read(audioEngineProvider.notifier)
+                              .playLocal(tracks[index]),
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 38)),
+                  ],
+                ),
+        ),
         _buildDiscoverySliver(discovery),
         const SliverToBoxAdapter(child: SizedBox(height: 48)),
       ],
@@ -54,26 +126,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final horizontal = width < 700 ? 16.0 : 28.0;
 
     return discovery.when(
-      loading: () => const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: HiHatColors.coral),
-              SizedBox(height: 18),
-              Text('Tuning your discovery feed…'),
-            ],
-          ),
-        ),
-      ),
+      loading: () => const SliverFillRemaining(child: TrackGridSkeleton()),
       error: (_, _) => SliverFillRemaining(
         hasScrollBody: false,
         child: _HomeMessage(
           icon: Icons.wifi_tethering_error_rounded,
           title: 'Discovery source did not respond',
-          body:
-              'Refresh when your connection is ready, or search for a specific track. Existing local music remains available.',
+          body: 'Refresh when your connection is ready, or search for a specific track. Existing local music remains available.',
           action: FilledButton.tonalIcon(
             onPressed: () =>
                 ref.read(discoveryControllerProvider.notifier).refresh(),
@@ -84,16 +143,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       data: (tracks) {
         final preferences = ref.read(discoveryControllerProvider.notifier);
-        final playback = ref.watch(audioEngineProvider);
-
         if (!preferences.hasArtists) {
           return SliverFillRemaining(
             hasScrollBody: false,
             child: _HomeMessage(
               icon: Icons.library_music_outlined,
               title: 'Choose artists you return to',
-              body:
-                  'Hi Hat will build a local preference-based feed from artist and genre searches.',
+              body: 'Hi Hat will build a local preference-based feed from artist and genre searches.',
               action: FilledButton.icon(
                 onPressed: () => _showArtistPicker(firstRun: true),
                 icon: const Icon(Icons.add_rounded),
@@ -108,8 +164,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: _HomeMessage(
               icon: Icons.album_outlined,
               title: 'No discovery tracks found',
-              body:
-                  'Your preferences are saved. Try refreshing or editing your artists and genres.',
+              body: 'Your preferences are saved. Try refreshing or editing your artists and genres.',
               action: FilledButton.tonalIcon(
                 onPressed: preferences.refresh,
                 icon: const Icon(Icons.refresh_rounded),
@@ -121,45 +176,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         final topTrack = tracks.first;
         final artistList = preferences.artists;
-        final heroTitle = topTrack.album != null && topTrack.album!.trim().isNotEmpty
+        final heroTitle =
+            topTrack.album != null && topTrack.album!.trim().isNotEmpty
             ? topTrack.album!
-            : (topTrack.displayTitle.isNotEmpty ? topTrack.displayTitle : 'Featured Album');
+            : (topTrack.displayTitle.isNotEmpty
+                  ? topTrack.displayTitle
+                  : 'Featured Album');
         final heroSubtitle = artistList.isNotEmpty
             ? 'By ${artistList.take(3).join(', ')}'
             : 'By ${topTrack.artist}';
 
-        final totalSeconds = tracks.fold<int>(
-          0,
-          (sum, t) => sum + (t.durationSeconds?.toInt() ?? 0),
-        );
-        final totalDurationText = totalSeconds >= 3600
-            ? '${totalSeconds ~/ 3600} hr ${(totalSeconds % 3600) ~/ 60} mins'
-            : '${(totalSeconds / 60).ceil()} mins';
-
         return SliverMainAxisGroup(
           slivers: [
-            // Top Hero Banner matching the reference screenshot with big album art and name
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 24),
+              padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 24),
               sliver: SliverToBoxAdapter(
-                child: HeroBanner(
-                  title: heroTitle,
-                  subtitle: heroSubtitle,
-                  artworkUrl: topTrack.highResArtworkUrl ?? topTrack.artworkUrl,
-                  songCountText: '${tracks.length} songs',
-                  durationText: totalDurationText,
-                  qualityBadge: 'FLAC Lossless',
-                  isPlaying: playback.playing,
-                  onPlayAll: () => _playAll(tracks),
-                  onShuffle: () {
-                    final shuffled = [...tracks]..shuffle();
-                    _playAll(shuffled);
-                  },
-                  onReload: () => ref
-                      .read(discoveryControllerProvider.notifier)
-                      .shuffleAndReload(),
-                  onEdit: () => _showArtistPicker(firstRun: false),
-                  onMore: () => _showArtistPicker(firstRun: false),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const HiHatEyebrow('Discovery'),
+                          const SizedBox(height: 8),
+                          Text(
+                            'A few paths into the catalog',
+                            style: Theme.of(context).textTheme.headlineLarge
+                                ?.copyWith(fontFamily: 'Lora'),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$heroTitle · $heroSubtitle',
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(color: HiHatColors.trace),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton.filledTonal(
+                      tooltip: 'Edit discovery preferences',
+                      onPressed: () => _showArtistPicker(firstRun: false),
+                      icon: const Icon(Icons.tune_rounded),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -172,7 +232,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Featured Songs',
+                      'From your preferences',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -197,13 +257,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
                       icon: const Icon(
-                        Icons.shuffle_rounded,
+                        Icons.refresh_rounded,
                         size: 16,
                         color: HiHatColors.coral,
                       ),
                       label: const Text(
-                        'Shuffle & Reload',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        'Refresh',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -235,13 +298,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
       },
     );
-  }
-
-  Future<void> _playAll(List<TrackSummary> tracks) async {
-    if (tracks.isEmpty) return;
-    await ref.read(audioEngineProvider.notifier).clearQueue();
-    await ref.read(audioEngineProvider.notifier).addAllToQueue(tracks);
-    await _play(tracks.first);
   }
 
   Future<void> _showArtistPicker({required bool firstRun}) async {
@@ -292,6 +348,113 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .showSnackBar(SnackBar(content: Text(transfer!.error!)));
       }
     }
+  }
+}
+
+class _ListeningStage extends ConsumerWidget {
+  const _ListeningStage({required this.playback});
+
+  final PlaybackState playback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = playback.track;
+    final scheme = Theme.of(context).colorScheme;
+    if (track == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          border: Border.all(color: scheme.outlineVariant),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: [
+            HiHatMark(size: 58),
+            SizedBox(width: 22),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your listening room is quiet',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Find a track or choose something stored on this device.',
+                    style: TextStyle(color: HiHatColors.trace),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          TrackArtwork(
+            artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
+            size: 112,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                HiHatEyebrow(
+                  playback.playing ? 'Playing in the chamber' : 'Ready locally',
+                  color: playback.playing
+                      ? HiHatColors.signal
+                      : HiHatColors.brandGreen,
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  track.displayTitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  track.album == null
+                      ? track.artist
+                      : '${track.artist} · ${track.album}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyLarge
+                      ?.copyWith(color: HiHatColors.trace),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          FilledButton(
+            onPressed: () => ref.read(audioEngineProvider.notifier).toggle(),
+            style: FilledButton.styleFrom(
+              shape: const CircleBorder(),
+              minimumSize: const Size.square(64),
+            ),
+            child: Icon(
+              playback.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 32,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

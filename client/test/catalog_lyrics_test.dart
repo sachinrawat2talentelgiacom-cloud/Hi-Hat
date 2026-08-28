@@ -115,4 +115,38 @@ void main() {
     final details = await service.albumDetails(albums.single);
     expect(details.tracks.single.title, 'Track');
   });
+
+  test('search retries providers after a transient failed round', () async {
+    var calls = 0;
+    final adapter = StubAdapter((_) {
+      calls++;
+      if (calls <= ProviderSearchService.instances.length) {
+        return jsonBody({'error': 'temporary'}, status: 503);
+      }
+      return jsonBody({
+        'data': {
+          'items': [
+            {
+              'id': 7,
+              'title': 'Recovered',
+              'artist': {'name': 'Singer'},
+              'album': {'title': 'Record'},
+              'duration': 180,
+            },
+          ],
+        },
+      });
+    });
+    final dio = Dio()..httpClientAdapter = adapter;
+    final service = ProviderSearchService(dio: dio);
+
+    await expectLater(
+      service.search('first attempt'),
+      throwsA(isA<ProviderSearchException>()),
+    );
+    final recovered = await service.search('second attempt');
+
+    expect(recovered.single.title, 'Recovered');
+    expect(calls, ProviderSearchService.instances.length + 1);
+  });
 }

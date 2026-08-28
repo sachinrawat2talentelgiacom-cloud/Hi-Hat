@@ -146,21 +146,24 @@ void main() {
     expect(afterClear, isEmpty);
   });
 
-  test('discovery controller loads cached feed immediately on startup', () async {
-    final store = const ArtistPreferencesStore();
-    await store.save(artists: ['Daft Punk'], genres: {});
-    final sampleTracks = [track('101', artist: 'Daft Punk')];
-    await store.saveCachedFeed(sampleTracks);
+  test(
+    'discovery controller loads cached feed immediately on startup',
+    () async {
+      final store = const ArtistPreferencesStore();
+      await store.save(artists: ['Daft Punk'], genres: {});
+      final sampleTracks = [track('101', artist: 'Daft Punk')];
+      await store.saveCachedFeed(sampleTracks);
 
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
 
-    final controller = container.read(discoveryControllerProvider.notifier);
-    await controller.loadSaved();
+      final controller = container.read(discoveryControllerProvider.notifier);
+      await controller.loadSaved();
 
-    final state = container.read(discoveryControllerProvider);
-    expect(state.value, isNotNull);
-    expect(state.value!.length, 1);
-    expect(state.value!.first.title, 'Track 101');
-  });
+      final state = container.read(discoveryControllerProvider);
+      expect(state.value, isNotNull);
+      expect(state.value!.length, 1);
+      expect(state.value!.first.title, 'Track 101');
+    },
+  );
 }

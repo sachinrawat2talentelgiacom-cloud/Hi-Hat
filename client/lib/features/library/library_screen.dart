@@ -8,13 +8,13 @@ import 'package:path/path.dart' as p;
 
 import '../../core/theme.dart';
 import '../../data/app_database.dart';
-import '../../models/track.dart';
 import '../../services/audio_engine.dart';
 import '../../services/flac_metadata.dart';
 import '../../services/file_integrity.dart';
 import '../../services/library_folder_service.dart';
 import '../../services/library_service.dart';
 import '../../widgets/app_widgets.dart';
+import '../../widgets/brand_widgets.dart';
 import '../../services/user_data_store.dart';
 import '../player/song_actions.dart';
 
@@ -38,105 +38,108 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
     final playlists = ref.watch(playlistProvider);
-    final playback = ref.watch(audioEngineProvider);
     final width = MediaQuery.sizeOf(context).width;
     final horizontal = width < 700 ? 16.0 : 28.0;
 
     return CustomScrollView(
       slivers: [
-        // Action Bar
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 0),
-            child: Row(
+            padding: EdgeInsets.fromLTRB(horizontal, 30, horizontal, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Local Library',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    color: Colors.white,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Create playlist',
-                  onPressed: () async {
-                    final name =
-                        await askPlaylistName(context, 'Create playlist');
-                    if (name != null && name.trim().isNotEmpty) {
-                      final error = await ref
-                          .read(playlistProvider.notifier)
-                          .create(name.trim());
-                      if (error != null && context.mounted) {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(SnackBar(content: Text(error)));
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.playlist_add_rounded,
-                      color: HiHatColors.trace),
-                ),
-                IconButton(
-                  tooltip: 'Scan music folder',
-                  onPressed: scanning ? null : _scanFolder,
-                  icon: scanning
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: HiHatColors.coral,
+                const HiHatEyebrow('Local archive'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Owned here',
+                            style: Theme.of(context).textTheme.displayMedium,
                           ),
-                        )
-                      : const Icon(Icons.sync_rounded, color: HiHatColors.trace),
-                ),
-                IconButton(
-                  tooltip: 'Import local FLAC',
-                  onPressed: () => _import(context, ref),
-                  icon: const Icon(Icons.add_rounded, color: HiHatColors.trace),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Verified files that stay available without the server.',
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(color: HiHatColors.trace),
+                          ),
+                        ],
+                      ),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () => _import(context, ref),
+                      icon: const Icon(Icons.audio_file_outlined),
+                      label: const Text('Import FLAC'),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Scan music folder',
+                      onPressed: scanning ? null : _scanFolder,
+                      icon: scanning
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.sync_rounded),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
 
-        // Hero Banner if tracks exist
         library.when(
           loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
           error: (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
-          data: (tracks) {
-            if (tracks.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-            final firstTrack = tracks.first;
-
-            return SliverPadding(
-              padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
-              sliver: SliverToBoxAdapter(
-                child: HeroBanner(
-                  title: 'FLAC Archive',
-                  subtitle: '${tracks.length} local tracks ready offline',
-                  artworkUrl: firstTrack.artworkUrl,
-                  songCountText: '${tracks.length} songs',
-                  durationText: 'Lossless FLAC',
-                  qualityBadge: 'FLAC 100%',
-                  isPlaying: playback.playing,
-                  onPlayAll: () => _playAll(tracks),
-                  onShuffle: () {
-                    final shuffled = [...tracks]..shuffle();
-                    _playAll(shuffled);
-                  },
-                  onEdit: () => _import(context, ref),
-                  onMore: _scanFolder,
+          data: (tracks) => SliverPadding(
+            padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 28),
+            sliver: SliverToBoxAdapter(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 15,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Wrap(
+                  spacing: 28,
+                  runSpacing: 12,
+                  children: [
+                    _ArchiveReading(
+                      label: 'Files',
+                      value: '${tracks.length} available',
+                    ),
+                    const _ArchiveReading(
+                      label: 'Format',
+                      value: 'Verified FLAC',
+                    ),
+                    const _ArchiveReading(
+                      label: 'Availability',
+                      value: 'On this device',
+                    ),
+                  ],
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
 
         // Playlists Section
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: horizontal),
-          sliver: SliverToBoxAdapter(child: _PlaylistsSection(state: playlists)),
+          sliver: SliverToBoxAdapter(
+            child: _PlaylistsSection(state: playlists),
+          ),
         ),
 
         // Track List Table
@@ -201,7 +204,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     SliverPadding(
                       padding: EdgeInsets.symmetric(horizontal: horizontal),
                       sliver: const SliverToBoxAdapter(
-                        child: TrackTableHeader(secondaryColumnTitle: 'Quality'),
+                        child: TrackTableHeader(
+                          secondaryColumnTitle: 'Quality',
+                        ),
                       ),
                     ),
                     SliverPadding(
@@ -226,13 +231,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         const SliverToBoxAdapter(child: SizedBox(height: 48)),
       ],
     );
-  }
-
-  Future<void> _playAll(List<TrackSummary> tracks) async {
-    if (tracks.isEmpty) return;
-    await ref.read(audioEngineProvider.notifier).clearQueue();
-    await ref.read(audioEngineProvider.notifier).addAllToQueue(tracks);
-    await ref.read(audioEngineProvider.notifier).playLocal(tracks.first);
   }
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {
@@ -331,6 +329,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (mounted) setState(() => scanning = false);
     }
   }
+}
+
+class _ArchiveReading extends StatelessWidget {
+  const _ArchiveReading({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(minWidth: 130),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        HiHatEyebrow(label, color: HiHatColors.trace),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              size: 14,
+              color: HiHatColors.brandGreen,
+            ),
+            const SizedBox(width: 7),
+            Text(value, style: Theme.of(context).textTheme.labelLarge),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 class _PlaylistsSection extends ConsumerWidget {

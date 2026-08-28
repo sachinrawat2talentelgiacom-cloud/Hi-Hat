@@ -15,6 +15,20 @@ if (-not (Test-Path -LiteralPath $flutter)) {
 }
 
 Set-Location -LiteralPath $clientRoot
+
+# Winget updates the user PATH, but an already-running Explorer process may not
+# see it until the next sign-in. Locate NuGet directly so native WebView plugin
+# dependencies can still be restored on the first launch after setup.
+if (-not (Get-Command nuget.exe -ErrorAction SilentlyContinue)) {
+    $wingetPackages = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages'
+    $nuget = Get-ChildItem -Path $wingetPackages -Filter nuget.exe -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -like '*Microsoft.NuGet_*' } |
+        Select-Object -First 1
+    if ($nuget) {
+        $env:Path = "$(Split-Path -Parent $nuget.FullName);$env:Path"
+    }
+}
+
 Write-Host 'Starting Hi Hat' -ForegroundColor Green
 & $flutter pub get
 if ($LASTEXITCODE -ne 0) { throw 'Flutter dependency setup failed.' }

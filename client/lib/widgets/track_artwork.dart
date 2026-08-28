@@ -34,7 +34,7 @@ class TrackArtwork extends StatelessWidget {
 
     Widget child = _buildImage(context);
 
-    if (heroTag != null) {
+    if (heroTag != null && !MediaQuery.disableAnimationsOf(context)) {
       child = Hero(tag: heroTag!, child: child);
     }
 

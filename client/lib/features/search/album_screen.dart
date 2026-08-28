@@ -43,7 +43,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         future: details,
         builder: (context, snapshot) {
           final album = snapshot.data ?? widget.album;
-          final isPlaying = playback.playing &&
+          final isPlaying =
+              playback.playing &&
               album.tracks.any((t) => t.id == playback.track?.id);
 
           return CustomScrollView(
@@ -72,8 +73,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     onMore: album.tracks.isEmpty
                         ? null
                         : () => ref
-                            .read(audioEngineProvider.notifier)
-                            .addAllToQueue(album.tracks),
+                              .read(audioEngineProvider.notifier)
+                              .addAllToQueue(album.tracks),
                   ),
                 ),
               ),

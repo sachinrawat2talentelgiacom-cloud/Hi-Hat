@@ -40,7 +40,8 @@ class DiscoveryController
       if (cachedTracks.isNotEmpty) {
         state = AsyncValue.data(cachedTracks);
         final cachedTime = await store.loadCachedFeedTime();
-        final isStale = cachedTime == null ||
+        final isStale =
+            cachedTime == null ||
             DateTime.now().difference(cachedTime) > const Duration(minutes: 20);
         if (isStale) {
           unawaited(_silentRefresh());

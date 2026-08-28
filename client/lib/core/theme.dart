@@ -95,28 +95,39 @@ class HiHatTokens extends ThemeExtension<HiHatTokens> {
 }
 
 abstract final class HiHatColors {
-  static const signal = Color(0xFFFF5E4D);
-  static const coral = Color(0xFFFF5E4D);
-  static const coralLight = Color(0xFFFF7A6B);
-  static const coralDark = Color(0xFFE54736);
-  static const chamber = Color(0xFF0C0D11);
-  static const chamberSunken = Color(0xFF090A0D);
-  static const chamberRaised = Color(0xFF15171E);
-  static const mineral = Color(0xFFF4F5F8);
-  static const trace = Color(0xFF8E92A2);
-  static const aluminum = Color(0xFFD2D5E0);
-  static const tape = Color(0xFF1E202B);
-  static const cue = Color(0xFFFF8A7A);
-  static const cardBorder = Color(0xFF262834);
-  static const cardHover = Color(0xFF1F222D);
+  // Brand expression. Orange identifies Hi Hat; it is not playback state.
+  static const brandDark = Color(0xFF141413);
+  static const brandLight = Color(0xFFFAF9F5);
+  static const brandMid = Color(0xFFB0AEA5);
+  static const brandLightGray = Color(0xFFE8E6DC);
+  static const brandOrange = Color(0xFFD97757);
+  static const brandBlue = Color(0xFF6A9BCC);
+  static const brandGreen = Color(0xFF788C5D);
+
+  // Product truth. Signal is reserved for live, verified and selected states.
+  static const signal = Color(0xFFB7FF3C);
+  static const onSignal = Color(0xFF182100);
+  static const coral = signal;
+  static const coralLight = Color(0xFFD0FF84);
+  static const coralDark = Color(0xFF86C900);
+  static const chamber = Color(0xFF111311);
+  static const chamberSunken = Color(0xFF0C0E0C);
+  static const chamberRaised = Color(0xFF191C19);
+  static const mineral = Color(0xFFE8ECE6);
+  static const trace = Color(0xFFAEB6AC);
+  static const aluminum = Color(0xFFC9CFCA);
+  static const tape = Color(0xFF212521);
+  static const cue = Color(0xFFD0FF84);
+  static const cardBorder = Color(0xFF303530);
+  static const cardHover = Color(0xFF212521);
 }
 
 abstract final class HiHatTheme {
   static ThemeData get dark => _base(
     const ColorScheme(
       brightness: Brightness.dark,
-      primary: HiHatColors.coral,
-      onPrimary: Colors.white,
+      primary: HiHatColors.signal,
+      onPrimary: HiHatColors.onSignal,
       secondary: HiHatColors.coralLight,
       onSecondary: Colors.black,
       error: Color(0xFFFF5252),
@@ -138,7 +149,31 @@ abstract final class HiHatTheme {
     ),
   );
 
-  static ThemeData get light => dark; // MelodyMix theme is dark-first
+  static ThemeData get light => _base(
+    const ColorScheme(
+      brightness: Brightness.light,
+      primary: Color(0xFF426800),
+      onPrimary: Colors.white,
+      secondary: Color(0xFF59634F),
+      onSecondary: Colors.white,
+      error: Color(0xFFBA1A1A),
+      onError: Colors.white,
+      surface: Color(0xFFF7FAF5),
+      onSurface: Color(0xFF191D18),
+      surfaceContainerLowest: Colors.white,
+      surfaceContainerLow: Color(0xFFF0F3ED),
+      surfaceContainer: Color(0xFFE9EDE6),
+      surfaceContainerHigh: Color(0xFFE2E6DE),
+      surfaceContainerHighest: Color(0xFFDCE0D9),
+      outline: Color(0xFF747A71),
+      outlineVariant: Color(0xFFC4C9C0),
+      shadow: Color(0xFF191D18),
+      scrim: Color(0xFF191D18),
+      inverseSurface: Color(0xFF2E312D),
+      onInverseSurface: Color(0xFFF0F3ED),
+      inversePrimary: HiHatColors.signal,
+    ),
+  );
 
   static ThemeData _base(ColorScheme scheme) => ThemeData(
     useMaterial3: true,
@@ -148,66 +183,69 @@ abstract final class HiHatTheme {
     focusColor: scheme.primary.withValues(alpha: .24),
     hoverColor: Colors.white.withValues(alpha: .04),
     splashFactory: InkSparkle.splashFactory,
-    textTheme: const TextTheme(
+    textTheme: TextTheme(
       displayLarge: TextStyle(
+        fontFamily: 'Poppins',
         fontSize: 48,
         fontWeight: FontWeight.w700,
         letterSpacing: -1.5,
-        color: HiHatColors.mineral,
+        color: scheme.onSurface,
       ),
       displayMedium: TextStyle(
+        fontFamily: 'Poppins',
         fontSize: 36,
         fontWeight: FontWeight.w700,
         letterSpacing: -1.0,
-        color: HiHatColors.mineral,
+        color: scheme.onSurface,
       ),
       headlineLarge: TextStyle(
+        fontFamily: 'Poppins',
         fontSize: 30,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.6,
-        color: HiHatColors.mineral,
+        color: scheme.onSurface,
       ),
       headlineMedium: TextStyle(
+        fontFamily: 'Poppins',
         fontSize: 24,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.3,
-        color: HiHatColors.mineral,
+        color: scheme.onSurface,
       ),
       titleLarge: TextStyle(
+        fontFamily: 'Poppins',
         fontSize: 19,
         fontWeight: FontWeight.w600,
-        color: HiHatColors.mineral,
+        color: scheme.onSurface,
       ),
       titleMedium: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w600,
-        color: HiHatColors.mineral,
+        color: scheme.onSurface,
       ),
-      bodyLarge: TextStyle(
-        fontSize: 15,
-        height: 1.45,
-        color: HiHatColors.mineral,
-      ),
+      bodyLarge: TextStyle(fontSize: 15, height: 1.45, color: scheme.onSurface),
       bodyMedium: TextStyle(
         fontSize: 14,
         height: 1.42,
-        color: HiHatColors.trace,
+        color: scheme.onSurfaceVariant,
       ),
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.2,
-        color: HiHatColors.mineral,
+        color: scheme.onSurface,
       ),
       labelMedium: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: HiHatColors.trace,
+        fontFeatures: const [FontFeature.tabularFigures()],
+        color: scheme.onSurfaceVariant,
       ),
       labelSmall: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w500,
-        color: HiHatColors.trace,
+        fontFeatures: const [FontFeature.tabularFigures()],
+        color: scheme.onSurfaceVariant,
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
@@ -280,8 +318,8 @@ abstract final class HiHatTheme {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: scheme.primary,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(44, 44),
+        foregroundColor: scheme.onPrimary,
+        minimumSize: const Size(48, 48),
         shape: const StadiumBorder(),
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
@@ -290,8 +328,8 @@ abstract final class HiHatTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.white,
-        minimumSize: const Size(44, 44),
+        foregroundColor: scheme.onSurface,
+        minimumSize: const Size(48, 48),
         side: BorderSide(color: scheme.primary.withValues(alpha: 0.7)),
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -300,8 +338,8 @@ abstract final class HiHatTheme {
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
-        minimumSize: const Size.square(40),
-        foregroundColor: HiHatColors.mineral,
+        minimumSize: const Size.square(48),
+        foregroundColor: scheme.onSurface,
       ),
     ),
     dividerTheme: DividerThemeData(

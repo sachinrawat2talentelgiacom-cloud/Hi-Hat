@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../services/audio_engine.dart';
 import '../../services/download_service.dart';
 import '../../widgets/track_artwork.dart';
+import '../../widgets/brand_widgets.dart';
 import 'full_player_screen.dart';
 import 'song_actions.dart';
 
@@ -53,6 +54,18 @@ class PlayerPanel extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Row(
+                  children: [
+                    const HiHatEyebrow('Listening instrument'),
+                    const Spacer(),
+                    if (current.isLocal)
+                      const HiHatStatusChip(
+                        label: 'Owned file',
+                        icon: Icons.offline_pin_outlined,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
                 ConstrainedBox(
                   constraints: const BoxConstraints(
                     maxWidth: 360,
@@ -142,7 +155,7 @@ class PlayerPanel extends ConsumerWidget {
                       icon: const Icon(Icons.skip_previous_rounded),
                       iconSize: 36,
                     ),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 4),
                     FilledButton(
                       onPressed: current.isLocal
                           ? () =>
@@ -159,7 +172,7 @@ class PlayerPanel extends ConsumerWidget {
                         size: 36,
                       ),
                     ),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 4),
                     IconButton(
                       tooltip: 'Next',
                       onPressed: ref.read(audioEngineProvider.notifier).next,
@@ -220,11 +233,19 @@ class PlayerPanel extends ConsumerWidget {
                 const Divider(),
                 const SizedBox(height: 18),
                 _Reading(
-                  label: current.isLocal ? 'VERIFIED SOURCE' : 'LISTED QUALITY',
+                  label: current.isLocal ? 'SOURCE' : 'LISTED QUALITY',
                   value: current.quality.display,
                   icon: current.isLocal
                       ? Icons.verified_outlined
                       : Icons.high_quality_outlined,
+                ),
+                const SizedBox(height: 12),
+                _Reading(
+                  label: 'OWNED FILE',
+                  value: current.localPath ?? 'Not stored on this device yet',
+                  icon: current.isLocal
+                      ? Icons.folder_open_outlined
+                      : Icons.cloud_download_outlined,
                 ),
                 const SizedBox(height: 12),
                 _Reading(
@@ -409,9 +430,7 @@ class MiniPlayer extends ConsumerWidget {
         color: const Color(0xFF0C0D11),
         child: InkWell(
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const FullPlayerScreen(),
-            ),
+            MaterialPageRoute<void>(builder: (_) => const FullPlayerScreen()),
           ),
           child: Container(
             height: 68,
@@ -492,9 +511,7 @@ class MiniPlayer extends ConsumerWidget {
       child: Container(
         height: 86,
         decoration: const BoxDecoration(
-          border: Border(
-            top: BorderSide(color: Color(0xFF1E202B), width: 1),
-          ),
+          border: Border(top: BorderSide(color: Color(0xFF1E202B), width: 1)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Row(
@@ -610,8 +627,8 @@ class MiniPlayer extends ConsumerWidget {
                             customBorder: const CircleBorder(),
                             onTap: track.isLocal
                                 ? () => ref
-                                    .read(audioEngineProvider.notifier)
-                                    .toggle()
+                                      .read(audioEngineProvider.notifier)
+                                      .toggle()
                                 : null,
                             child: Padding(
                               padding: const EdgeInsets.all(4),
@@ -631,8 +648,9 @@ class MiniPlayer extends ConsumerWidget {
                           tooltip: 'Next',
                           padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
-                          onPressed:
-                              ref.read(audioEngineProvider.notifier).next,
+                          onPressed: ref
+                              .read(audioEngineProvider.notifier)
+                              .next,
                           icon: const Icon(
                             Icons.skip_next_rounded,
                             color: HiHatColors.mineral,
@@ -686,8 +704,8 @@ class MiniPlayer extends ConsumerWidget {
                               onChanged: playback.duration == Duration.zero
                                   ? null
                                   : (value) => ref
-                                      .read(audioEngineProvider.notifier)
-                                      .seek(playback.duration * value),
+                                        .read(audioEngineProvider.notifier)
+                                        .seek(playback.duration * value),
                             ),
                           ),
                         ),
@@ -741,9 +759,7 @@ class MiniPlayer extends ConsumerWidget {
                   tooltip: playback.muted ? 'Unmute' : 'Mute',
                   padding: const EdgeInsets.all(6),
                   constraints: const BoxConstraints(),
-                  onPressed: ref
-                      .read(audioEngineProvider.notifier)
-                      .toggleMute,
+                  onPressed: ref.read(audioEngineProvider.notifier).toggleMute,
                   icon: Icon(
                     playback.muted
                         ? Icons.volume_off_rounded

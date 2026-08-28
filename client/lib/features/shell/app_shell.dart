@@ -3,13 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../../services/download_service.dart';
-import '../../services/user_data_store.dart';
-import '../../widgets/app_widgets.dart';
+import '../../widgets/brand_widgets.dart';
 import '../browser_acquisition/acquisition_dock.dart';
 import '../home/home_screen.dart';
 import '../library/library_screen.dart';
 import '../player/player_panel.dart';
-import '../player/song_actions.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -23,495 +21,247 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   int selected = 0;
 
-  final pages = const [
+  static const pages = [
     HomeScreen(),
     SearchScreen(),
     LibraryScreen(),
     SettingsScreen(),
   ];
 
-  String _breadcrumbTitle() {
-    return switch (selected) {
-      0 => 'Home',
-      1 => 'Search',
-      2 => 'Songs',
-      3 => 'Settings',
-      _ => 'Home',
-    };
-  }
+  static const destinations = <_Destination>[
+    _Destination('Listen', Icons.home_outlined, Icons.home_rounded),
+    _Destination('Find', Icons.search_rounded, Icons.search_rounded),
+    _Destination('Owned', Icons.album_outlined, Icons.album_rounded),
+    _Destination('Setup', Icons.tune_outlined, Icons.tune_rounded),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final downloads = ref.watch(downloadServiceProvider);
-    final activeDownloads = downloads.activeTransfers;
-    final playlists = ref.watch(playlistProvider);
+    final width = MediaQuery.sizeOf(context).width;
+    final expanded = width >= 980;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final transfers = ref.watch(downloadServiceProvider).activeTransfers;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 980;
-
-        if (isDesktop) {
-          return Scaffold(
-            body: SafeArea(
-              child: Stack(
+    return Scaffold(
+      body: SafeArea(
+        child: Stack(
+          children: [
+            if (expanded)
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      // Full-Height Left Navigation Sidebar
-                      _buildSidebar(context, playlists),
-                      // Main Content & Docked Right Player
-                      Expanded(
-                        child: Column(
-                          children: [
-                            // Top Header Bar
-                            _buildTopHeader(context, activeDownloads.length),
-                            // Page Content
-                            Expanded(
-                              child: KeyedSubtree(
-                                key: ValueKey(selected),
-                                child: pages[selected],
-                              ),
+                  _IdentityRail(
+                    selected: selected,
+                    onSelected: (value) => setState(() => selected = value),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _CommandHeader(
+                          title: destinations[selected].label,
+                          transferCount: transfers.length,
+                          onOpenSetup: () => setState(() => selected = 3),
+                        ),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 220),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child: KeyedSubtree(
+                              key: ValueKey(selected),
+                              child: pages[selected],
                             ),
-                            // Bottom Player Bar docked ONLY inside the right column!
-                            const MiniPlayer(),
-                          ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: width >= 1320 ? 440 : 360,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerLowest,
+                      border: Border(
+                        left: BorderSide(
+                          color: Theme.of(context).colorScheme.outlineVariant,
                         ),
                       ),
-                    ],
+                    ),
+                    child: const PlayerPanel(),
                   ),
-                  const AcquisitionDock(),
                 ],
-              ),
-            ),
-          );
-        }
-
-        // Tablet & Mobile layout
-        return Scaffold(
-          body: SafeArea(
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    _buildTopHeader(context, activeDownloads.length),
-                    Expanded(
+              )
+            else
+              Column(
+                children: [
+                  _CommandHeader(
+                    title: destinations[selected].label,
+                    transferCount: transfers.length,
+                    onOpenSetup: () => setState(() => selected = 3),
+                    compact: true,
+                  ),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 180),
                       child: KeyedSubtree(
                         key: ValueKey(selected),
                         child: pages[selected],
                       ),
                     ),
-                  ],
-                ),
-                const AcquisitionDock(),
-              ],
-            ),
-          ),
-          bottomNavigationBar: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const MiniPlayer(),
-              NavigationBar(
-                selectedIndex: selected,
-                onDestinationSelected: (value) =>
-                    setState(() => selected = value),
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.home_outlined),
-                    selectedIcon: Icon(Icons.home_rounded),
-                    label: 'Home',
                   ),
-                  NavigationDestination(
-                    icon: Icon(Icons.search_rounded),
-                    label: 'Search',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.graphic_eq_rounded),
-                    label: 'Songs',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.tune_rounded),
-                    label: 'Settings',
+                  const MiniPlayer(),
+                  NavigationBar(
+                    selectedIndex: selected,
+                    onDestinationSelected: (value) =>
+                        setState(() => selected = value),
+                    destinations: [
+                      for (final destination in destinations)
+                        NavigationDestination(
+                          icon: Icon(destination.icon),
+                          selectedIcon: Icon(destination.selectedIcon),
+                          label: destination.label,
+                        ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildTopHeader(BuildContext context, int activeDownloadCount) {
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0C0D11),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFF1E202B), width: 1),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Breadcrumb Navigation on left
-          Text(
-            _breadcrumbTitle(),
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const Spacer(),
-          // Right Action Icons
-          IconButton(
-            tooltip: 'Settings',
-            onPressed: () => setState(() => selected = 3),
-            icon: Icon(
-              Icons.settings_outlined,
-              size: 21,
-              color: selected == 3 ? HiHatColors.coral : HiHatColors.trace,
-            ),
-          ),
-          const SizedBox(width: 4),
-          // Downloads / Notification bell
-          IconButton(
-            tooltip: activeDownloadCount > 0
-                ? '$activeDownloadCount active downloads'
-                : 'Downloads',
-            onPressed: () {
-              if (activeDownloadCount > 0) {
-                final first = ref
-                    .read(downloadServiceProvider)
-                    .activeTransfers
-                    .firstOrNull;
-                if (first != null) {
-                  ref
-                      .read(downloadServiceProvider.notifier)
-                      .focus(first.trackId);
-                }
-              }
-            },
-            icon: Badge(
-              isLabelVisible: activeDownloadCount > 0,
-              backgroundColor: HiHatColors.coral,
-              smallSize: 8,
-              child: const Icon(
-                Icons.notifications_none_outlined,
-                size: 21,
-                color: HiHatColors.trace,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // User Avatar / Audiophile Profile
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF1F222E),
-              border: Border.all(
-                color: HiHatColors.coral.withValues(alpha: 0.7),
-                width: 1.5,
-              ),
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.person_rounded,
-                size: 20,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebar(BuildContext context, PlaylistState playlists) {
-    return Container(
-      width: 240,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0C0D11),
-        border: Border(
-          right: BorderSide(color: Color(0xFF1E202B), width: 1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Brand Logo at top
-          const Padding(
-            padding: EdgeInsets.fromLTRB(22, 22, 22, 26),
-            child: SoundwaveLogo(title: 'Hi Hat', fontSize: 20),
-          ),
-
-          // Primary Navigation Links (Only real features)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Column(
-              children: [
-                _buildNavItem(
-                  icon: Icons.home_outlined,
-                  selectedIcon: Icons.home_rounded,
-                  label: 'Home',
-                  index: 0,
-                ),
-                const SizedBox(height: 4),
-                _buildNavItem(
-                  icon: Icons.search_rounded,
-                  selectedIcon: Icons.search_rounded,
-                  label: 'Search',
-                  index: 1,
-                ),
-                const SizedBox(height: 4),
-                _buildNavItem(
-                  icon: Icons.graphic_eq_rounded,
-                  selectedIcon: Icons.graphic_eq_rounded,
-                  label: 'Songs',
-                  index: 2,
-                ),
-                const SizedBox(height: 4),
-                _buildNavItem(
-                  icon: Icons.tune_rounded,
-                  selectedIcon: Icons.tune_rounded,
-                  label: 'Settings',
-                  index: 3,
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // "Your Library" section header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: const [
-                    Icon(
-                      Icons.bar_chart_rounded,
-                      size: 18,
-                      color: HiHatColors.trace,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Your Library',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: HiHatColors.trace,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  iconSize: 18,
-                  tooltip: 'Create playlist',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.add, color: HiHatColors.trace),
-                  onPressed: () async {
-                    final name =
-                        await askPlaylistName(context, 'Create playlist');
-                    if (name != null && name.trim().isNotEmpty) {
-                      final error = await ref
-                          .read(playlistProvider.notifier)
-                          .create(name.trim());
-                      if (error != null && context.mounted) {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(SnackBar(content: Text(error)));
-                      }
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Actual User Playlists from Database (Top-aligned compact items)
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                if (playlists.playlists.isEmpty)
-                  _buildSidebarActionItem(
-                    icon: Icons.add_circle_outline_rounded,
-                    label: 'Create playlist',
-                    onTap: () async {
-                      final name = await askPlaylistName(
-                        context,
-                        'Create playlist',
-                      );
-                      if (name != null && name.trim().isNotEmpty) {
-                        final error = await ref
-                            .read(playlistProvider.notifier)
-                            .create(name.trim());
-                        if (error != null && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(error)),
-                          );
-                        }
-                      }
-                    },
-                  )
-                else ...[
-                  for (final playlist in playlists.playlists)
-                    _buildSidebarActionItem(
-                      icon: Icons.playlist_play_rounded,
-                      label: playlist.name,
-                      onTap: () => setState(() => selected = 2),
-                    ),
-                  const SizedBox(height: 4),
-                  _buildSidebarActionItem(
-                    icon: Icons.add_circle_outline_rounded,
-                    label: 'Create playlist',
-                    onTap: () async {
-                      final name = await askPlaylistName(
-                        context,
-                        'Create playlist',
-                      );
-                      if (name != null && name.trim().isNotEmpty) {
-                        final error = await ref
-                            .read(playlistProvider.notifier)
-                            .create(name.trim());
-                        if (error != null && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(error)),
-                          );
-                        }
-                      }
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // Bottom Left Status Pill
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF151720),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: const Color(0xFF262834),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(
-                    Icons.language_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'English',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarActionItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: HiHatColors.trace,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: HiHatColors.trace,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required IconData selectedIcon,
-    required String label,
-    required int index,
-  }) {
-    final isSelected = selected == index;
-
-    return Material(
-      color: isSelected ? const Color(0xFF171922) : Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () => setState(() => selected = index),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Icon(
-                isSelected ? selectedIcon : icon,
-                size: 20,
-                color: isSelected ? HiHatColors.coral : HiHatColors.trace,
-              ),
-              const SizedBox(width: 14),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? Colors.white : HiHatColors.trace,
-                ),
-              ),
-            ],
-          ),
+            const AcquisitionDock(),
+          ],
         ),
       ),
     );
   }
 }
 
+class _IdentityRail extends StatelessWidget {
+  const _IdentityRail({required this.selected, required this.onSelected});
+
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 92,
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      border: Border(
+        right: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+    ),
+    child: Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 22),
+          child: HiHatLockup(compact: true),
+        ),
+        Container(
+          width: 28,
+          height: 1,
+          color: HiHatColors.brandOrange.withValues(alpha: .65),
+        ),
+        const SizedBox(height: 18),
+        Expanded(
+          child: NavigationRail(
+            backgroundColor: Colors.transparent,
+            selectedIndex: selected,
+            labelType: NavigationRailLabelType.all,
+            onDestinationSelected: onSelected,
+            destinations: [
+              for (final destination in _AppShellState.destinations)
+                NavigationRailDestination(
+                  icon: Icon(destination.icon),
+                  selectedIcon: Icon(destination.selectedIcon),
+                  label: Text(destination.label),
+                ),
+            ],
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 18),
+          child: RotatedBox(
+            quarterTurns: 3,
+            child: Text(
+              'HEAR WHAT MATTERS.',
+              style: TextStyle(
+                color: HiHatColors.brandMid,
+                fontSize: 9,
+                letterSpacing: 1.6,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CommandHeader extends StatelessWidget {
+  const _CommandHeader({
+    required this.title,
+    required this.transferCount,
+    required this.onOpenSetup,
+    this.compact = false,
+  });
+
+  final String title;
+  final int transferCount;
+  final VoidCallback onOpenSetup;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minHeight: 68),
+    padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 28),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      border: Border(
+        bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+    ),
+    child: Row(
+      children: [
+        if (compact) ...[
+          const HiHatLockup(compact: true),
+          const SizedBox(width: 12),
+        ],
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!compact) const HiHatEyebrow('Listening instrument'),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+          ],
+        ),
+        const Spacer(),
+        if (!compact)
+          HiHatStatusChip(
+            label: transferCount > 0
+                ? '$transferCount transfer${transferCount == 1 ? '' : 's'}'
+                : 'Local ready',
+            icon: transferCount > 0
+                ? Icons.downloading_rounded
+                : Icons.offline_pin_outlined,
+            live: transferCount > 0,
+          ),
+        if (!compact) const SizedBox(width: 10),
+        IconButton(
+          tooltip: 'Setup and preferences',
+          onPressed: onOpenSetup,
+          icon: const Icon(Icons.tune_rounded),
+        ),
+      ],
+    ),
+  );
+}
+
+class _Destination {
+  const _Destination(this.label, this.icon, this.selectedIcon);
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+}

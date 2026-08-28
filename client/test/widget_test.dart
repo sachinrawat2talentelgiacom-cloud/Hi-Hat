@@ -9,6 +9,7 @@ import 'package:hi_hat/features/search/search_screen.dart';
 import 'package:hi_hat/models/track.dart';
 import 'package:hi_hat/services/audio_engine.dart';
 import 'package:hi_hat/widgets/track_artwork.dart';
+import 'package:hi_hat/widgets/brand_widgets.dart';
 
 class TestAudioEngine extends StateNotifier<PlaybackState>
     implements AudioEngine {
@@ -97,14 +98,36 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Search'), findsOneWidget);
+    expect(find.text('Find. Verify. Own.'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
-    expect(find.text('Search songs, artists, and albums'), findsOneWidget);
-    expect(find.text('LOSSLESS FLAC'), findsOneWidget);
+    expect(find.text('Find a track, artist, or album'), findsOneWidget);
+    expect(find.text('Find it once. Keep the verified file.'), findsOneWidget);
 
     final field = tester.getRect(find.byType(TextField));
     final icon = tester.getRect(find.byIcon(Icons.search_rounded));
     expect((field.center.dy - icon.center.dy).abs(), lessThan(1));
+  });
+
+  testWidgets('brand mark and lockup expose one coherent identity', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: HiHatTheme.dark,
+        home: const Scaffold(
+          body: Column(
+            children: [
+              HiHatMark(semanticLabel: 'Hi Hat'),
+              HiHatLockup(),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.bySemanticsLabel('Hi Hat'), findsOneWidget);
+    expect(find.text('HI HAT'), findsOneWidget);
+    expect(find.byType(CustomPaint), findsWidgets);
   });
 
   testWidgets('desktop compact player exposes a substantial volume fader', (

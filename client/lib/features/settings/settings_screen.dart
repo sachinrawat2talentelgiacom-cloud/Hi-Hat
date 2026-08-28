@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme.dart';
 import '../../diagnostics/browser_acquisition_log.dart';
 import '../../services/library_folder_service.dart';
+import '../../widgets/brand_widgets.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -48,20 +49,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 48),
           sliver: SliverList.list(
             children: [
-              const Text(
+              const HiHatEyebrow('System'),
+              const SizedBox(height: 8),
+              Text(
                 'Settings',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                  color: Colors.white,
-                ),
+                style: Theme.of(context).textTheme.displayMedium,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 6),
+              Text(
+                'Connection, storage, playback, and application identity.',
+                style: Theme.of(context).textTheme.bodyLarge
+                    ?.copyWith(color: HiHatColors.trace),
+              ),
+              const SizedBox(height: 30),
 
               // Library Section Card
               _buildSectionCard(
-                title: 'Library & Storage',
+                title: 'Library location',
                 icon: Icons.folder_outlined,
                 children: [
                   ListTile(
@@ -92,7 +96,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               color: HiHatColors.coral,
                             ),
                           )
-                        : const Icon(Icons.chevron_right, color: HiHatColors.trace),
+                        : const Icon(
+                            Icons.chevron_right,
+                            color: HiHatColors.trace,
+                          ),
                     onTap: choosingFolder ? null : _chooseLibraryFolder,
                   ),
                   const SizedBox(height: 6),
@@ -111,7 +118,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               // Playback Section Card
               _buildSectionCard(
-                title: 'Lossless Playback',
+                title: 'Playback and output',
                 icon: Icons.graphic_eq_rounded,
                 children: const [
                   ListTile(
@@ -128,7 +135,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     subtitle: Text(
-                      'Highest verified lossless FLAC (bit-perfect)',
+                      'Highest verified supported lossless file',
                       style: TextStyle(color: HiHatColors.trace),
                     ),
                   ),
@@ -154,9 +161,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               const SizedBox(height: 18),
 
-              // Provider Section Card
               _buildSectionCard(
-                title: 'Provider Browser & Security',
+                title: 'Connection and provider',
                 icon: Icons.shield_outlined,
                 children: [
                   const Text(
@@ -202,14 +208,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               const SizedBox(height: 18),
 
+              _buildSectionCard(
+                title: 'Appearance and accessibility',
+                icon: Icons.contrast_rounded,
+                children: const [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.motion_photos_off_outlined,
+                      color: HiHatColors.brandBlue,
+                    ),
+                    title: Text(
+                      'System accessibility',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      'Hi Hat follows text scaling, high contrast, keyboard focus, and reduced-motion preferences.',
+                      style: TextStyle(color: HiHatColors.trace),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
               // Use Boundary
               _buildSectionCard(
-                title: 'Use Boundary',
+                title: 'About Hi Hat',
                 icon: Icons.lock_outline_rounded,
                 children: const [
+                  HiHatLockup(),
+                  SizedBox(height: 14),
                   Text(
-                    'Hi Hat does not bypass authentication, DRM, paywalls, CAPTCHAs, or access controls. '
-                    'Acquire only content you are permitted to download.',
+                    'Hear what matters.',
+                    style: TextStyle(
+                      color: HiHatColors.brandOrange,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'Your verified local files remain playable without the provider or server. Hi Hat does not bypass authentication, DRM, paywalls, CAPTCHAs, or access controls.',
                     style: TextStyle(color: HiHatColors.trace, fontSize: 13),
                   ),
                 ],
@@ -227,18 +266,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required List<Widget> children,
   }) {
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF14161F),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF232634), width: 1),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: HiHatColors.cardBorder)),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(0, 18, 0, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: HiHatColors.coral),
+              Icon(icon, size: 20, color: HiHatColors.brandOrange),
               const SizedBox(width: 10),
               Text(
                 title,
