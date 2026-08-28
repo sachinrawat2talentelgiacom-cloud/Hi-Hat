@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme.dart';
 import '../../models/track.dart';
 import '../../models/album.dart';
 import '../../services/download_service.dart';
 import '../../services/provider_search_service.dart';
 import '../../services/track_playback_coordinator.dart';
+import '../../widgets/app_widgets.dart';
 import '../../widgets/track_artwork.dart';
 import '../player/song_actions.dart';
 import 'search_controller.dart';
@@ -58,13 +60,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final search = ref.watch(searchControllerProvider);
     final hasQuery = controller.text.trim().isNotEmpty;
 
+    final isDesktop = MediaQuery.sizeOf(context).width >= 980;
+    final horizontal = MediaQuery.sizeOf(context).width < 700 ? 16.0 : 28.0;
+
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 38,
-              vertical: 24,
+              horizontal: horizontal,
+              vertical: 20,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,13 +79,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Hi Hat',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        Text(
+                        const Text(
                           'Search',
-                          style: Theme.of(context).textTheme.headlineLarge,
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
@@ -91,93 +97,110 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 28),
-                TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  autofocus: MediaQuery.sizeOf(context).width >= 980,
-                  style: Theme.of(context).textTheme.titleLarge,
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: 'Search songs, artists, and albums',
-                    prefixIcon: const SizedBox(
-                      width: 58,
-                      height: 58,
-                      child: Center(
-                        child: Icon(Icons.search_rounded, size: 23),
+                const SizedBox(height: 18),
+                SizedBox(
+                  height: 48,
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    autofocus: isDesktop,
+                    style: const TextStyle(fontSize: 15, color: Colors.white),
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: 'Search songs, artists, and albums',
+                      hintStyle: const TextStyle(
+                        fontSize: 14,
+                        color: HiHatColors.trace,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        size: 22,
+                        color: HiHatColors.trace,
+                      ),
+                      suffixIcon: controller.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              onPressed: () {
+                                controller.clear();
+                                ref
+                                    .read(searchControllerProvider.notifier)
+                                    .cancel();
+                                setState(() {});
+                                focusNode.requestFocus();
+                              },
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: HiHatColors.trace,
+                              ),
+                            ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      fillColor: const Color(0xFF151720),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide:
+                            const BorderSide(color: Color(0xFF262834)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: const BorderSide(
+                          color: HiHatColors.coral,
+                          width: 1.5,
+                        ),
                       ),
                     ),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 58,
-                      minHeight: 58,
-                    ),
-                    suffixIcon: controller.text.isEmpty
-                        ? (MediaQuery.sizeOf(context).width >= 700
-                              ? const Padding(
-                                  padding: EdgeInsets.only(right: 16),
-                                  child: Center(
-                                    widthFactor: 1,
-                                    child: Text('ENTER'),
-                                  ),
-                                )
-                              : null)
-                        : IconButton(
-                            tooltip: 'Clear search',
-                            onPressed: () {
-                              controller.clear();
-                              ref
-                                  .read(searchControllerProvider.notifier)
-                                  .cancel();
-                              setState(() {});
-                              focusNode.requestFocus();
-                            },
-                            icon: const Icon(Icons.close_rounded),
-                          ),
+                    onChanged: (value) {
+                      setState(() {});
+                      debounce?.cancel();
+                      if (value.trim().isEmpty) {
+                        ref.read(searchControllerProvider.notifier).cancel();
+                        return;
+                      }
+                      debounce = Timer(
+                        const Duration(milliseconds: 500),
+                        () => _searchAll(value),
+                      );
+                    },
+                    onSubmitted: _searchAll,
                   ),
-                  onChanged: (value) {
-                    setState(() {});
-                    debounce?.cancel();
-                    if (value.trim().isEmpty) {
-                      ref.read(searchControllerProvider.notifier).cancel();
-                      return;
-                    }
-                    debounce = Timer(
-                      const Duration(milliseconds: 500),
-                      () => _searchAll(value),
-                    );
-                  },
-                  onSubmitted: _searchAll,
                 ),
                 const SizedBox(height: 16),
-                const _CalibrationLine(),
-                const SizedBox(height: 32),
               ],
             ),
           ),
         ),
         SliverToBoxAdapter(
           child: albums.when(
-            loading: () => const LinearProgressIndicator(),
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: LinearProgressIndicator(color: HiHatColors.coral),
+            ),
             error: (_, _) => const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Text(
                 'Album results are temporarily unavailable. Song results are shown below.',
+                style: TextStyle(color: HiHatColors.trace),
               ),
             ),
             data: (items) => items.isEmpty
                 ? const SizedBox.shrink()
                 : SizedBox(
-                    height: 210,
+                    height: 215,
                     child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
                       scrollDirection: Axis.horizontal,
                       itemCount: items.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 14),
+                      separatorBuilder: (_, _) => const SizedBox(width: 16),
                       itemBuilder: (_, i) {
                         final album = items[i];
                         return SizedBox(
-                          width: 150,
+                          width: 145,
                           child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute<void>(
@@ -189,20 +212,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               children: [
                                 TrackArtwork(
                                   artworkUrl: album.artworkUrl,
-                                  size: 150,
-                                  borderRadius: BorderRadius.circular(10),
+                                  size: 145,
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 8),
                                 Text(
                                   album.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
                                 ),
+                                const SizedBox(height: 2),
                                 Text(
                                   album.artist,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: HiHatColors.trace,
+                                  ),
                                 ),
                               ],
                             ),
@@ -216,7 +248,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         search.when(
           loading: () => const SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(
+              child: CircularProgressIndicator(color: HiHatColors.coral),
+            ),
           ),
           error: (error, _) {
             final providerUnavailable = error is ProviderSearchException;
@@ -255,22 +289,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               );
             }
-            return SliverPadding(
-              padding: EdgeInsets.symmetric(
-                horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 38,
-              ),
-              sliver: SliverList.separated(
-                itemCount: results.length,
-                separatorBuilder: (_, _) => const Divider(indent: 82),
-                itemBuilder: (context, index) => TrackResultTile(
-                  track: results[index],
-                  onPlay: () => _play(results[index]),
+            return SliverMainAxisGroup(
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontal),
+                  sliver: const SliverToBoxAdapter(
+                    child: TrackTableHeader(secondaryColumnTitle: 'Quality'),
+                  ),
                 ),
-              ),
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontal),
+                  sliver: SliverList.builder(
+                    itemCount: results.length,
+                    itemBuilder: (context, index) => TrackTableRow(
+                      track: results[index],
+                      onTap: () => _play(results[index]),
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 36)),
+        const SliverToBoxAdapter(child: SizedBox(height: 48)),
       ],
     );
   }
@@ -495,36 +536,17 @@ class _SignalMark extends StatelessWidget {
   const _SignalMark();
   @override
   Widget build(BuildContext context) => Row(
-    children: [
-      Icon(Icons.graphic_eq, color: Theme.of(context).colorScheme.primary),
-      const SizedBox(width: 8),
-      const Text('MONOCHROME'),
-    ],
-  );
-}
-
-class _CalibrationLine extends StatelessWidget {
-  const _CalibrationLine();
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
+    children: const [
+      Icon(Icons.graphic_eq, color: HiHatColors.coral, size: 18),
+      SizedBox(width: 8),
       Text(
-        'FLAC',
+        'LOSSLESS FLAC',
         style: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
+          fontSize: 11,
           fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+          color: HiHatColors.trace,
         ),
-      ),
-      const Text('  ·  verified after download'),
-      const SizedBox(width: 18),
-      Expanded(
-        child: Divider(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      const SizedBox(width: 10),
-      Icon(
-        Icons.graphic_eq,
-        size: 20,
-        color: Theme.of(context).colorScheme.primary,
       ),
     ],
   );

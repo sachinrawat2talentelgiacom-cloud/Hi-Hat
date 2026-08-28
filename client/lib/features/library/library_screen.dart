@@ -6,13 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/theme.dart';
 import '../../data/app_database.dart';
+import '../../models/track.dart';
 import '../../services/audio_engine.dart';
 import '../../services/flac_metadata.dart';
 import '../../services/file_integrity.dart';
 import '../../services/library_folder_service.dart';
 import '../../services/library_service.dart';
-import '../../widgets/track_artwork.dart';
+import '../../widgets/app_widgets.dart';
 import '../../services/user_data_store.dart';
 import '../player/song_actions.dart';
 
@@ -36,53 +38,122 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
     final playlists = ref.watch(playlistProvider);
+    final playback = ref.watch(audioEngineProvider);
+    final width = MediaQuery.sizeOf(context).width;
+    final horizontal = width < 700 ? 16.0 : 28.0;
+
     return CustomScrollView(
       slivers: [
-        SliverAppBar.large(
-          title: const Text('Local library'),
-          actions: [
-            IconButton(
-              tooltip: 'Create playlist',
-              onPressed: () async {
-                final name = await askPlaylistName(context, 'Create playlist');
-                if (name != null) {
-                  final error = await ref
-                      .read(playlistProvider.notifier)
-                      .create(name);
-                  if (error != null && context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text(error)));
-                  }
-                }
-              },
-              icon: const Icon(Icons.playlist_add),
+        // Action Bar
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 0),
+            child: Row(
+              children: [
+                const Text(
+                  'Local Library',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Create playlist',
+                  onPressed: () async {
+                    final name =
+                        await askPlaylistName(context, 'Create playlist');
+                    if (name != null && name.trim().isNotEmpty) {
+                      final error = await ref
+                          .read(playlistProvider.notifier)
+                          .create(name.trim());
+                      if (error != null && context.mounted) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(SnackBar(content: Text(error)));
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.playlist_add_rounded,
+                      color: HiHatColors.trace),
+                ),
+                IconButton(
+                  tooltip: 'Scan music folder',
+                  onPressed: scanning ? null : _scanFolder,
+                  icon: scanning
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: HiHatColors.coral,
+                          ),
+                        )
+                      : const Icon(Icons.sync_rounded, color: HiHatColors.trace),
+                ),
+                IconButton(
+                  tooltip: 'Import local FLAC',
+                  onPressed: () => _import(context, ref),
+                  icon: const Icon(Icons.add_rounded, color: HiHatColors.trace),
+                ),
+              ],
             ),
-            IconButton(
-              tooltip: 'Scan music folder',
-              onPressed: scanning ? null : _scanFolder,
-              icon: scanning
-                  ? const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync_rounded),
-            ),
-            IconButton(
-              tooltip: 'Import local FLAC',
-              onPressed: () => _import(context, ref),
-              icon: const Icon(Icons.add_rounded),
-            ),
-            const SizedBox(width: 12),
-          ],
+          ),
         ),
-        SliverToBoxAdapter(child: _PlaylistsSection(state: playlists)),
+
+        // Hero Banner if tracks exist
+        library.when(
+          loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+          error: (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+          data: (tracks) {
+            if (tracks.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+            final firstTrack = tracks.first;
+
+            return SliverPadding(
+              padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
+              sliver: SliverToBoxAdapter(
+                child: HeroBanner(
+                  title: 'FLAC Archive',
+                  subtitle: '${tracks.length} local tracks ready offline',
+                  artworkUrl: firstTrack.artworkUrl,
+                  songCountText: '${tracks.length} songs',
+                  durationText: 'Lossless FLAC',
+                  qualityBadge: 'FLAC 100%',
+                  isPlaying: playback.playing,
+                  onPlayAll: () => _playAll(tracks),
+                  onShuffle: () {
+                    final shuffled = [...tracks]..shuffle();
+                    _playAll(shuffled);
+                  },
+                  onEdit: () => _import(context, ref),
+                  onMore: _scanFolder,
+                ),
+              ),
+            );
+          },
+        ),
+
+        // Playlists Section
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: horizontal),
+          sliver: SliverToBoxAdapter(child: _PlaylistsSection(state: playlists)),
+        ),
+
+        // Track List Table
         library.when(
           loading: () => const SliverFillRemaining(
-            child: Center(child: CircularProgressIndicator()),
+            hasScrollBody: false,
+            child: Center(
+              child: CircularProgressIndicator(color: HiHatColors.coral),
+            ),
           ),
           error: (_, _) => const SliverFillRemaining(
+            hasScrollBody: false,
             child: Center(
-              child: Text('The local library could not be opened.'),
+              child: Text(
+                'The local library could not be opened.',
+                style: TextStyle(color: HiHatColors.trace),
+              ),
             ),
           ),
           data: (tracks) => tracks.isEmpty
@@ -94,22 +165,28 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.library_music_outlined,
                             size: 52,
-                            color: Theme.of(context).colorScheme.primary,
+                            color: HiHatColors.coral,
                           ),
                           const SizedBox(height: 18),
-                          Text(
+                          const Text(
                             'Your quiet archive',
-                            style: Theme.of(context).textTheme.headlineMedium,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
                           const SizedBox(height: 10),
                           const Text(
                             'Downloaded and imported FLAC files will remain available here offline.',
+                            style: TextStyle(color: HiHatColors.trace),
+                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 24),
-                          FilledButton.tonalIcon(
+                          FilledButton.icon(
                             onPressed: () => _import(context, ref),
                             icon: const Icon(Icons.audio_file_outlined),
                             label: const Text('Import a FLAC'),
@@ -119,61 +196,43 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ),
                   ),
                 )
-              : SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  sliver: SliverList.separated(
-                    itemCount: tracks.length,
-                    separatorBuilder: (_, _) => const Divider(indent: 72),
-                    itemBuilder: (context, index) {
-                      final track = tracks[index];
-                      final subtitleParts = <String>[
-                        track.artist,
-                        if (track.albumWithYear != null)
-                          track.albumWithYear!
-                        else if (track.album != null)
-                          track.album!,
-                        track.quality.display,
-                        if (track.durationSeconds != null &&
-                            track.durationSeconds! > 0)
-                          track.formattedDuration,
-                      ];
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        minTileHeight: 68,
-                        leading: TrackArtwork(
-                          artworkUrl: track.artworkUrl,
-                          size: 48,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        title: Text(
-                          track.displayTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        subtitle: Text(
-                          subtitleParts.join('  ·  '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        trailing: SongActionsButton(track: track),
-                        onTap: () => ref
-                            .read(audioEngineProvider.notifier)
-                            .playLocal(track),
-                      );
-                    },
-                  ),
+              : SliverMainAxisGroup(
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                      sliver: const SliverToBoxAdapter(
+                        child: TrackTableHeader(secondaryColumnTitle: 'Quality'),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                      sliver: SliverList.builder(
+                        itemCount: tracks.length,
+                        itemBuilder: (context, index) {
+                          final track = tracks[index];
+                          return TrackTableRow(
+                            track: track,
+                            secondaryText: track.quality.display,
+                            onTap: () => ref
+                                .read(audioEngineProvider.notifier)
+                                .playLocal(track),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
         ),
+        const SliverToBoxAdapter(child: SizedBox(height: 48)),
       ],
     );
+  }
+
+  Future<void> _playAll(List<TrackSummary> tracks) async {
+    if (tracks.isEmpty) return;
+    await ref.read(audioEngineProvider.notifier).clearQueue();
+    await ref.read(audioEngineProvider.notifier).addAllToQueue(tracks);
+    await ref.read(audioEngineProvider.notifier).playLocal(tracks.first);
   }
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {

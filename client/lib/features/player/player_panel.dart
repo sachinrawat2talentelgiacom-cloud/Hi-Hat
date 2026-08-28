@@ -384,171 +384,429 @@ class PlayerPanel extends ConsumerWidget {
 
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = Theme.of(context).extension<HiHatTokens>()!;
     final playback = ref.watch(audioEngineProvider);
     final track = playback.track;
     final transfer = track != null
         ? ref.watch(downloadServiceProvider).forTrack(track.id)
         : null;
     if (track == null) return const SizedBox.shrink();
+
     final acquiring =
         transfer != null && PlayerPanel._isActivePhase(transfer.phase);
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainer,
-      child: InkWell(
-        focusColor: Theme.of(context).colorScheme.primary
-            .withValues(alpha: .18),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const FullPlayerScreen()),
-        ),
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).width >= 760 ? 104 : 88,
-          child: Stack(
-            children: [
-              Row(
-                children: [
-                  SizedBox(width: tokens.spaceMd),
-                  TrackArtwork(
-                    artworkUrl: track.artworkUrl,
-                    size: 54,
-                    borderRadius: BorderRadius.circular(tokens.radiusSm),
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= 680;
+    final totalMs = playback.duration.inMilliseconds;
+    final progress = totalMs > 0
+        ? (playback.position.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        : 0.0;
+
+    if (!isDesktop) {
+      // Mobile / Compact Mini Player Layout
+      return Material(
+        color: const Color(0xFF0C0D11),
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const FullPlayerScreen(),
+            ),
+          ),
+          child: Container(
+            height: 68,
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Color(0xFF1E202B), width: 1),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                TrackArtwork(
+                  artworkUrl: track.artworkUrl,
+                  size: 44,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        track.displayTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        acquiring
+                            ? '${PlayerPanel._phase(transfer.phase)} ${PlayerPanel._percent(transfer.progress)}'
+                            : track.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: HiHatColors.trace,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: tokens.spaceMd),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            if (track.explicit) ...[
-                              const _ExplicitBadge(),
-                              const SizedBox(width: 5),
+                ),
+                IconButton(
+                  iconSize: 30,
+                  onPressed: track.isLocal
+                      ? () => ref.read(audioEngineProvider.notifier).toggle()
+                      : null,
+                  icon: Icon(
+                    playback.playing
+                        ? Icons.pause_circle_filled_rounded
+                        : Icons.play_circle_fill_rounded,
+                    color: HiHatColors.coral,
+                  ),
+                ),
+                IconButton(
+                  iconSize: 24,
+                  onPressed: ref.read(audioEngineProvider.notifier).next,
+                  icon: const Icon(
+                    Icons.skip_next_rounded,
+                    color: HiHatColors.trace,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Desktop 3-Section Layout matching reference screenshot
+    return Material(
+      color: const Color(0xFF0C0D11),
+      child: Container(
+        height: 86,
+        decoration: const BoxDecoration(
+          border: Border(
+            top: BorderSide(color: Color(0xFF1E202B), width: 1),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: [
+            // Left Section: Artwork + Title + Artist
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const FullPlayerScreen(),
+                ),
+              ),
+              child: SizedBox(
+                width: 220,
+                child: Row(
+                  children: [
+                    TrackArtwork(
+                      artworkUrl: track.artworkUrl,
+                      size: 48,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              if (track.explicit) ...[
+                                const _ExplicitBadge(),
+                                const SizedBox(width: 5),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  track.displayTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
                             ],
-                            Expanded(
-                              child: Text(
-                                track.displayTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            acquiring
+                                ? '${PlayerPanel._phase(transfer.phase)} ${PlayerPanel._percent(transfer.progress)}'
+                                : '${track.artist}${track.album != null ? ' · ${track.album}' : ''}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: HiHatColors.trace,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Center Section: Transport Controls & Timeline Slider
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Transport controls
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          iconSize: 20,
+                          tooltip: 'Replay 10s',
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
+                          onPressed: () => ref
+                              .read(audioEngineProvider.notifier)
+                              .seekRelative(const Duration(seconds: -10)),
+                          icon: const Icon(
+                            Icons.replay_10_rounded,
+                            color: HiHatColors.mineral,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          iconSize: 22,
+                          tooltip: 'Previous',
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
+                          onPressed: ref
+                              .read(audioEngineProvider.notifier)
+                              .previous,
+                          icon: const Icon(
+                            Icons.skip_previous_rounded,
+                            color: HiHatColors.mineral,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Play/Pause button
+                        Material(
+                          color: Colors.transparent,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: track.isLocal
+                                ? () => ref
+                                    .read(audioEngineProvider.notifier)
+                                    .toggle()
+                                : null,
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                playback.playing
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                size: 30,
+                                color: Colors.white,
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          acquiring
-                              ? '${PlayerPanel._phase(transfer.phase)} ${PlayerPanel._percent(transfer.progress)}'
-                              : '${track.artist}${track.album != null ? ' · ${track.album}' : ''}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context).colorScheme.outline,
+                        const SizedBox(width: 12),
+                        IconButton(
+                          iconSize: 22,
+                          tooltip: 'Next',
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
+                          onPressed:
+                              ref.read(audioEngineProvider.notifier).next,
+                          icon: const Icon(
+                            Icons.skip_next_rounded,
+                            color: HiHatColors.mineral,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          iconSize: 20,
+                          tooltip: 'Forward 10s',
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
+                          onPressed: () => ref
+                              .read(audioEngineProvider.notifier)
+                              .seekRelative(const Duration(seconds: 10)),
+                          icon: const Icon(
+                            Icons.forward_10_rounded,
+                            color: HiHatColors.mineral,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (MediaQuery.sizeOf(context).width >= 400)
-                    IconButton(
-                      tooltip: 'Previous',
-                      onPressed: ref
-                          .read(audioEngineProvider.notifier)
-                          .previous,
-                      icon: const Icon(Icons.skip_previous_rounded),
-                    ),
-                  IconButton(
-                    tooltip: playback.playing ? 'Pause' : 'Play',
-                    onPressed: track.isLocal
-                        ? () => ref.read(audioEngineProvider.notifier).toggle()
-                        : null,
-                    icon: Icon(
-                      playback.playing
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      size: 32,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Next',
-                    onPressed: ref.read(audioEngineProvider.notifier).next,
-                    icon: const Icon(Icons.skip_next_rounded),
-                  ),
-                  if (MediaQuery.sizeOf(context).width >= 760) ...[
-                    IconButton(
-                      tooltip: playback.muted ? 'Unmute' : 'Mute',
-                      onPressed: ref
-                          .read(audioEngineProvider.notifier)
-                          .toggleMute,
-                      icon: Icon(
-                        playback.muted ? Icons.volume_off : Icons.volume_up,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 230,
-                      child: Semantics(
-                        label:
-                            'Volume ${(playback.volume * 100).round()} percent',
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Slider(
-                                value: playback.volume,
-                                onChanged: ref
-                                    .read(audioEngineProvider.notifier)
-                                    .setVolume,
-                              ),
-                            ),
-                            SizedBox(
-                              width: 36,
-                              child: Text(
-                                '${(playback.volume * 100).round()}',
-                                textAlign: TextAlign.right,
-                                style: Theme.of(context).textTheme.labelMedium,
-                              ),
-                            ),
-                          ],
+                    const SizedBox(height: 2),
+                    // Progress Slider
+                    Row(
+                      children: [
+                        Text(
+                          PlayerPanel._time(playback.position),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: HiHatColors.trace,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SliderTheme(
+                            data: SliderThemeData(
+                              trackHeight: 3,
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 4.5,
+                              ),
+                              overlayShape: const RoundSliderOverlayShape(
+                                overlayRadius: 10,
+                              ),
+                              activeTrackColor: HiHatColors.coral,
+                              inactiveTrackColor: const Color(0xFF282A36),
+                              thumbColor: Colors.white,
+                            ),
+                            child: Slider(
+                              value: progress,
+                              onChanged: playback.duration == Duration.zero
+                                  ? null
+                                  : (value) => ref
+                                      .read(audioEngineProvider.notifier)
+                                      .seek(playback.duration * value),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          PlayerPanel._time(playback.duration),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: HiHatColors.trace,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                  IconButton(
-                    tooltip: 'Queue (${playback.queue.length})',
-                    onPressed: () => showQueue(context),
-                    icon: Badge.count(
-                      count: playback.queue.length,
-                      isLabelVisible: playback.queue.isNotEmpty,
-                      child: const Icon(Icons.queue_music),
+                ),
+              ),
+            ),
+
+            // Right Section: Lyrics, Volume, Queue, Fullscreen
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Lyrics button
+                IconButton(
+                  iconSize: 19,
+                  tooltip: 'Lyrics',
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(),
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    showDragHandle: true,
+                    builder: (_) => const FractionallySizedBox(
+                      heightFactor: 0.75,
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: LyricsView(),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                ],
-              ),
-              if (acquiring)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: LinearProgressIndicator(
-                    minHeight: 2,
-                    value: transfer.progress > 0 ? transfer.progress : null,
-                  ),
-                )
-              else if (playback.duration > Duration.zero)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: LinearProgressIndicator(
-                    minHeight: 3,
-                    value:
-                        (playback.position.inMilliseconds /
-                                playback.duration.inMilliseconds)
-                            .clamp(0, 1),
+                  icon: const Icon(
+                    Icons.notes_rounded,
+                    color: HiHatColors.trace,
                   ),
                 ),
-            ],
-          ),
+                const SizedBox(width: 6),
+                // Volume Control
+                IconButton(
+                  iconSize: 20,
+                  tooltip: playback.muted ? 'Unmute' : 'Mute',
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(),
+                  onPressed: ref
+                      .read(audioEngineProvider.notifier)
+                      .toggleMute,
+                  icon: Icon(
+                    playback.muted
+                        ? Icons.volume_off_rounded
+                        : Icons.volume_up_rounded,
+                    color: HiHatColors.trace,
+                  ),
+                ),
+                SizedBox(
+                  width: 72,
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 4.5,
+                      ),
+                      overlayShape: const RoundSliderOverlayShape(
+                        overlayRadius: 8,
+                      ),
+                      activeTrackColor: HiHatColors.coral,
+                      inactiveTrackColor: const Color(0xFF282A36),
+                      thumbColor: Colors.white,
+                    ),
+                    child: Slider(
+                      value: playback.volume,
+                      onChanged: ref
+                          .read(audioEngineProvider.notifier)
+                          .setVolume,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Queue Button (clean icon matching reference)
+                IconButton(
+                  iconSize: 20,
+                  tooltip: 'Queue (${playback.queue.length})',
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(),
+                  onPressed: () => showQueue(context),
+                  icon: const Icon(
+                    Icons.queue_music_rounded,
+                    color: HiHatColors.trace,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // Expand Fullscreen button
+                IconButton(
+                  iconSize: 18,
+                  tooltip: 'Full player',
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const FullPlayerScreen(),
+                    ),
+                  ),
+                  icon: const Icon(
+                    Icons.open_in_full_rounded,
+                    color: HiHatColors.trace,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

@@ -203,30 +203,53 @@ class _Transport extends ConsumerWidget {
           tooltip: state.shuffle ? 'Shuffle on' : 'Shuffle off',
           isSelected: state.shuffle,
           onPressed: ref.read(audioEngineProvider.notifier).toggleShuffle,
-          icon: const Icon(Icons.shuffle),
+          icon: Icon(
+            Icons.shuffle_rounded,
+            color: state.shuffle ? HiHatColors.coral : HiHatColors.trace,
+          ),
+        ),
+        IconButton(
+          tooltip: 'Rewind 10 seconds',
+          iconSize: 28,
+          onPressed: () => ref
+              .read(audioEngineProvider.notifier)
+              .seekRelative(const Duration(seconds: -10)),
+          icon: const Icon(Icons.replay_10_rounded, color: HiHatColors.trace),
         ),
         IconButton(
           tooltip: 'Previous',
-          iconSize: 38,
+          iconSize: 34,
           onPressed: ref.read(audioEngineProvider.notifier).previous,
-          icon: const Icon(Icons.skip_previous_rounded),
+          icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
         ),
+        const SizedBox(width: 6),
         FilledButton(
           style: FilledButton.styleFrom(
+            backgroundColor: HiHatColors.coral,
+            foregroundColor: Colors.white,
             shape: const CircleBorder(),
-            minimumSize: const Size.square(68),
+            minimumSize: const Size.square(64),
           ),
           onPressed: ref.read(audioEngineProvider.notifier).toggle,
           child: Icon(
             state.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            size: 38,
+            size: 36,
           ),
         ),
+        const SizedBox(width: 6),
         IconButton(
           tooltip: 'Next',
-          iconSize: 38,
+          iconSize: 34,
           onPressed: ref.read(audioEngineProvider.notifier).next,
-          icon: const Icon(Icons.skip_next_rounded),
+          icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+        ),
+        IconButton(
+          tooltip: 'Forward 10 seconds',
+          iconSize: 28,
+          onPressed: () => ref
+              .read(audioEngineProvider.notifier)
+              .seekRelative(const Duration(seconds: 10)),
+          icon: const Icon(Icons.forward_10_rounded, color: HiHatColors.trace),
         ),
         IconButton(
           tooltip: 'Repeat ${state.repeatMode.name}',
@@ -234,8 +257,11 @@ class _Transport extends ConsumerWidget {
           onPressed: ref.read(audioEngineProvider.notifier).cycleRepeat,
           icon: Icon(
             state.repeatMode == PlaybackRepeatMode.one
-                ? Icons.repeat_one
-                : Icons.repeat,
+                ? Icons.repeat_one_rounded
+                : Icons.repeat_rounded,
+            color: state.repeatMode != PlaybackRepeatMode.off
+                ? HiHatColors.coral
+                : HiHatColors.trace,
           ),
         ),
       ],

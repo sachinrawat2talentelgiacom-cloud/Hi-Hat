@@ -112,6 +112,28 @@ class DiscoveryController
     }
   }
 
+  Future<void> shuffleAndReload() async {
+    if (_artists.isEmpty) return;
+    final generation = ++_generation;
+    state = const AsyncValue.loading();
+    try {
+      // Clear cache so it fetches fresh randomized results
+      await ref.read(artistPreferencesStoreProvider).clearCachedFeed();
+      final tracks = await ref
+          .read(discoveryServiceProvider)
+          .buildFeed(artists: _artists, genres: _genres);
+      final shuffled = [...tracks]..shuffle();
+      if (generation == _generation) {
+        state = AsyncValue.data(shuffled);
+        await ref.read(artistPreferencesStoreProvider).saveCachedFeed(shuffled);
+      }
+    } catch (error, stackTrace) {
+      if (generation == _generation) {
+        state = AsyncValue.error(error, stackTrace);
+      }
+    }
+  }
+
   Future<void> _silentRefresh() async {
     if (_artists.isEmpty || _isRefreshing) return;
     _isRefreshing = true;

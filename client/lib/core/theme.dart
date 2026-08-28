@@ -95,64 +95,50 @@ class HiHatTokens extends ThemeExtension<HiHatTokens> {
 }
 
 abstract final class HiHatColors {
-  static const signal = Color(0xFF6EA8FF);
-  static const chamber = Color(0xFF0B1020);
-  static const chamberRaised = Color(0xFF121A2C);
-  static const mineral = Color(0xFFEEF2F8);
-  static const trace = Color(0xFFA8B3C7);
-  static const aluminum = Color(0xFFD4DCEC);
-  static const tape = Color(0xFF1B2740);
-  static const cue = Color(0xFFF2B84B);
+  static const signal = Color(0xFFFF5E4D);
+  static const coral = Color(0xFFFF5E4D);
+  static const coralLight = Color(0xFFFF7A6B);
+  static const coralDark = Color(0xFFE54736);
+  static const chamber = Color(0xFF0C0D11);
+  static const chamberSunken = Color(0xFF090A0D);
+  static const chamberRaised = Color(0xFF15171E);
+  static const mineral = Color(0xFFF4F5F8);
+  static const trace = Color(0xFF8E92A2);
+  static const aluminum = Color(0xFFD2D5E0);
+  static const tape = Color(0xFF1E202B);
+  static const cue = Color(0xFFFF8A7A);
+  static const cardBorder = Color(0xFF262834);
+  static const cardHover = Color(0xFF1F222D);
 }
 
 abstract final class HiHatTheme {
   static ThemeData get dark => _base(
     const ColorScheme(
       brightness: Brightness.dark,
-      primary: HiHatColors.signal,
-      onPrimary: Color(0xFF071326),
-      secondary: HiHatColors.cue,
-      onSecondary: Color(0xFF271900),
-      error: Color(0xFFFFB4AB),
-      onError: Color(0xFF690005),
+      primary: HiHatColors.coral,
+      onPrimary: Colors.white,
+      secondary: HiHatColors.coralLight,
+      onSecondary: Colors.black,
+      error: Color(0xFFFF5252),
+      onError: Colors.white,
       surface: HiHatColors.chamber,
       onSurface: HiHatColors.mineral,
-      surfaceContainerLow: Color(0xFF0F1627),
+      surfaceContainerLowest: HiHatColors.chamberSunken,
+      surfaceContainerLow: Color(0xFF111218),
       surfaceContainer: HiHatColors.chamberRaised,
       surfaceContainerHigh: HiHatColors.tape,
+      surfaceContainerHighest: Color(0xFF252836),
       outline: HiHatColors.trace,
-      outlineVariant: Color(0xFF2B3955),
+      outlineVariant: HiHatColors.cardBorder,
       shadow: Colors.black,
       scrim: Colors.black,
       inverseSurface: HiHatColors.mineral,
       onInverseSurface: HiHatColors.chamber,
-      inversePrimary: Color(0xFF245EAA),
+      inversePrimary: Color(0xFFFF7A6B),
     ),
   );
 
-  static ThemeData get light => _base(
-    const ColorScheme(
-      brightness: Brightness.light,
-      primary: Color(0xFF245EAA),
-      onPrimary: Colors.white,
-      secondary: Color(0xFF7B5700),
-      onSecondary: Colors.white,
-      error: Color(0xFFBA1A1A),
-      onError: Colors.white,
-      surface: Color(0xFFF7F9FD),
-      onSurface: Color(0xFF111827),
-      surfaceContainerLow: Color(0xFFF0F3F9),
-      surfaceContainer: Color(0xFFE8EDF6),
-      surfaceContainerHigh: Color(0xFFDDE5F2),
-      outline: Color(0xFF657189),
-      outlineVariant: Color(0xFFBEC8DA),
-      shadow: Colors.black,
-      scrim: Colors.black,
-      inverseSurface: Color(0xFF2E312D),
-      onInverseSurface: Color(0xFFF0F1EC),
-      inversePrimary: Color(0xFF9CC2FF),
-    ),
-  );
+  static ThemeData get light => dark; // MelodyMix theme is dark-first
 
   static ThemeData _base(ColorScheme scheme) => ThemeData(
     useMaterial3: true,
@@ -160,57 +146,111 @@ abstract final class HiHatTheme {
     scaffoldBackgroundColor: scheme.surface,
     extensions: const [HiHatTokens.standard],
     focusColor: scheme.primary.withValues(alpha: .24),
-    hoverColor: scheme.onSurface.withValues(alpha: .06),
+    hoverColor: Colors.white.withValues(alpha: .04),
     splashFactory: InkSparkle.splashFactory,
     textTheme: const TextTheme(
       displayLarge: TextStyle(
-        fontSize: 52,
+        fontSize: 48,
         fontWeight: FontWeight.w700,
-        letterSpacing: -2.0,
+        letterSpacing: -1.5,
+        color: HiHatColors.mineral,
       ),
       displayMedium: TextStyle(
-        fontSize: 42,
+        fontSize: 36,
         fontWeight: FontWeight.w700,
-        letterSpacing: -1.1,
+        letterSpacing: -1.0,
+        color: HiHatColors.mineral,
       ),
       headlineLarge: TextStyle(
-        fontSize: 32,
+        fontSize: 30,
         fontWeight: FontWeight.w700,
-        letterSpacing: -0.9,
+        letterSpacing: -0.6,
+        color: HiHatColors.mineral,
       ),
       headlineMedium: TextStyle(
-        fontSize: 26,
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.4,
+        fontSize: 24,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.3,
+        color: HiHatColors.mineral,
       ),
-      titleLarge: TextStyle(fontSize: 21, fontWeight: FontWeight.w600),
-      titleMedium: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-      bodyLarge: TextStyle(fontSize: 17, height: 1.45),
-      bodyMedium: TextStyle(fontSize: 15, height: 1.42),
+      titleLarge: TextStyle(
+        fontSize: 19,
+        fontWeight: FontWeight.w600,
+        color: HiHatColors.mineral,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: HiHatColors.mineral,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 15,
+        height: 1.45,
+        color: HiHatColors.mineral,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 14,
+        height: 1.42,
+        color: HiHatColors.trace,
+      ),
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.2,
+        color: HiHatColors.mineral,
+      ),
+      labelMedium: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: HiHatColors.trace,
+      ),
+      labelSmall: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        color: HiHatColors.trace,
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 72,
-      backgroundColor: scheme.surfaceContainerLow,
-      indicatorColor: scheme.primary.withValues(alpha: 0.18),
+      height: 68,
+      backgroundColor: scheme.surfaceContainerLowest,
+      indicatorColor: scheme.primary.withValues(alpha: 0.16),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          fontSize: 12,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w600
+              : FontWeight.normal,
+          color: states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.outline,
+        ),
+      ),
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          color: states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.outline,
+          size: 22,
+        ),
+      ),
     ),
     navigationRailTheme: NavigationRailThemeData(
-      backgroundColor: scheme.surfaceContainerLow,
-      indicatorColor: scheme.primary.withValues(alpha: 0.18),
-      minWidth: 80,
-      minExtendedWidth: 200,
+      backgroundColor: scheme.surfaceContainerLowest,
+      indicatorColor: scheme.primary.withValues(alpha: 0.16),
+      minWidth: 72,
+      minExtendedWidth: 240,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: scheme.surfaceContainerHigh,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
+      fillColor: scheme.surfaceContainer,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      hintStyle: TextStyle(
+        color: scheme.outline.withValues(alpha: 0.8),
+        fontSize: 14,
+      ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(999),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(999),
@@ -218,36 +258,54 @@ abstract final class HiHatTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(999),
-        borderSide: BorderSide(color: scheme.primary, width: 2),
+        borderSide: BorderSide(color: scheme.primary, width: 1.5),
       ),
     ),
     sliderTheme: SliderThemeData(
       activeTrackColor: scheme.primary,
       inactiveTrackColor: scheme.outlineVariant,
       thumbColor: scheme.primary,
-      trackHeight: 6,
-      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-      overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+      trackHeight: 4,
+      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+      overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
       color: scheme.surfaceContainer,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .7)),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(48, 48),
+        backgroundColor: scheme.primary,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(44, 44),
         shape: const StadiumBorder(),
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white,
+        minimumSize: const Size(44, 44),
+        side: BorderSide(color: scheme.primary.withValues(alpha: 0.7)),
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(minimumSize: const Size.square(44)),
+      style: IconButton.styleFrom(
+        minimumSize: const Size.square(40),
+        foregroundColor: HiHatColors.mineral,
+      ),
     ),
     dividerTheme: DividerThemeData(
-      color: scheme.outlineVariant,
+      color: scheme.outlineVariant.withValues(alpha: 0.6),
       thickness: 1,
       space: 1,
     ),

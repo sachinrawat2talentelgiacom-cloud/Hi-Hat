@@ -408,6 +408,14 @@ class AudioEngine extends StateNotifier<PlaybackState> {
   void showTrack(TrackSummary track) => state = state.copyWith(track: track);
   Future<void> toggle() => _player.playOrPause();
   Future<void> seek(Duration value) => _player.seek(value);
+  Future<void> seekRelative(Duration delta) async {
+    if (state.duration <= Duration.zero) return;
+    final targetMs = (state.position + delta).inMilliseconds.clamp(
+      0,
+      state.duration.inMilliseconds,
+    );
+    await seek(Duration(milliseconds: targetMs));
+  }
   Future<void> stop() => _player.stop();
   @override
   void dispose() {

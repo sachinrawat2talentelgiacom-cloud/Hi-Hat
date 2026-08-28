@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme.dart';
 import '../../models/track.dart';
 import '../../services/artist_preferences_store.dart';
+import '../../services/audio_engine.dart';
 import '../../services/discovery_service.dart';
 import '../../services/download_service.dart';
 import '../../services/provider_search_service.dart';
 import '../../services/track_playback_coordinator.dart';
+import '../../widgets/app_widgets.dart';
 import '../../widgets/track_artwork.dart';
 import '../player/song_actions.dart';
 import '../search/discovery_controller.dart';
@@ -40,34 +43,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return CustomScrollView(
       slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 38,
-              vertical: 24,
-            ),
-            child: Row(
-              children: [
-                Text('Home', style: Theme.of(context).textTheme.headlineLarge),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Edit artists and genres',
-                  onPressed: () => _showArtistPicker(firstRun: false),
-                  icon: const Icon(Icons.tune_rounded),
-                ),
-              ],
-            ),
-          ),
-        ),
         _buildDiscoverySliver(discovery),
-        const SliverToBoxAdapter(child: SizedBox(height: 36)),
+        const SliverToBoxAdapter(child: SizedBox(height: 48)),
       ],
     );
   }
 
   Widget _buildDiscoverySliver(AsyncValue<List<TrackSummary>> discovery) {
     final width = MediaQuery.sizeOf(context).width;
-    final horizontal = width < 700 ? 16.0 : 38.0;
+    final horizontal = width < 700 ? 16.0 : 28.0;
+
     return discovery.when(
       loading: () => const SliverFillRemaining(
         hasScrollBody: false,
@@ -75,7 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(),
+              CircularProgressIndicator(color: HiHatColors.coral),
               SizedBox(height: 18),
               Text('Tuning your discovery feed…'),
             ],
@@ -87,7 +72,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: _HomeMessage(
           icon: Icons.wifi_tethering_error_rounded,
           title: 'Discovery source did not respond',
-          body: 'Refresh when your connection is ready, or search for a specific track. Existing local music remains available.',
+          body:
+              'Refresh when your connection is ready, or search for a specific track. Existing local music remains available.',
           action: FilledButton.tonalIcon(
             onPressed: () =>
                 ref.read(discoveryControllerProvider.notifier).refresh(),
@@ -98,13 +84,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       data: (tracks) {
         final preferences = ref.read(discoveryControllerProvider.notifier);
+        final playback = ref.watch(audioEngineProvider);
+
         if (!preferences.hasArtists) {
           return SliverFillRemaining(
             hasScrollBody: false,
             child: _HomeMessage(
               icon: Icons.library_music_outlined,
               title: 'Choose artists you return to',
-              body: 'Hi Hat will build a local preference-based feed from artist and genre searches.',
+              body:
+                  'Hi Hat will build a local preference-based feed from artist and genre searches.',
               action: FilledButton.icon(
                 onPressed: () => _showArtistPicker(firstRun: true),
                 icon: const Icon(Icons.add_rounded),
@@ -119,7 +108,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: _HomeMessage(
               icon: Icons.album_outlined,
               title: 'No discovery tracks found',
-              body: 'Your preferences are saved. Try refreshing or editing your artists and genres.',
+              body:
+                  'Your preferences are saved. Try refreshing or editing your artists and genres.',
               action: FilledButton.tonalIcon(
                 onPressed: preferences.refresh,
                 icon: const Icon(Icons.refresh_rounded),
@@ -128,66 +118,130 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           );
         }
-        final columns = width < 360
-            ? 1
-            : width < 700
-            ? 2
-            : ((width - (horizontal * 2)) / 220).floor().clamp(3, 5);
+
+        final topTrack = tracks.first;
+        final artistList = preferences.artists;
+        final heroTitle = topTrack.album != null && topTrack.album!.trim().isNotEmpty
+            ? topTrack.album!
+            : (topTrack.displayTitle.isNotEmpty ? topTrack.displayTitle : 'Featured Album');
+        final heroSubtitle = artistList.isNotEmpty
+            ? 'By ${artistList.take(3).join(', ')}'
+            : 'By ${topTrack.artist}';
+
+        final totalSeconds = tracks.fold<int>(
+          0,
+          (sum, t) => sum + (t.durationSeconds?.toInt() ?? 0),
+        );
+        final totalDurationText = totalSeconds >= 3600
+            ? '${totalSeconds ~/ 3600} hr ${(totalSeconds % 3600) ~/ 60} mins'
+            : '${(totalSeconds / 60).ceil()} mins';
+
         return SliverMainAxisGroup(
           slivers: [
+            // Top Hero Banner matching the reference screenshot with big album art and name
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 22),
+              padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 24),
+              sliver: SliverToBoxAdapter(
+                child: HeroBanner(
+                  title: heroTitle,
+                  subtitle: heroSubtitle,
+                  artworkUrl: topTrack.highResArtworkUrl ?? topTrack.artworkUrl,
+                  songCountText: '${tracks.length} songs',
+                  durationText: totalDurationText,
+                  qualityBadge: 'FLAC Lossless',
+                  isPlaying: playback.playing,
+                  onPlayAll: () => _playAll(tracks),
+                  onShuffle: () {
+                    final shuffled = [...tracks]..shuffle();
+                    _playAll(shuffled);
+                  },
+                  onReload: () => ref
+                      .read(discoveryControllerProvider.notifier)
+                      .shuffleAndReload(),
+                  onEdit: () => _showArtistPicker(firstRun: false),
+                  onMore: () => _showArtistPicker(firstRun: false),
+                ),
+              ),
+            ),
+
+            // Section Header with Shuffle & Reload action
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 16),
               sliver: SliverToBoxAdapter(
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'For your ears',
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            'From your artists and genre preferences',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                          ),
-                        ],
+                    const Text(
+                      'Featured Songs',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.4,
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Refresh and reshuffle feed',
-                      onPressed: preferences.refresh,
-                      icon: const Icon(Icons.refresh_rounded),
+                    OutlinedButton.icon(
+                      onPressed: () => ref
+                          .read(discoveryControllerProvider.notifier)
+                          .shuffleAndReload(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF2E3244)),
+                        backgroundColor: const Color(0xFF14161E),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.shuffle_rounded,
+                        size: 16,
+                        color: HiHatColors.coral,
+                      ),
+                      label: const Text(
+                        'Shuffle & Reload',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+
+            // Big Cover Art Card Blocks Grid
             SliverPadding(
-              padding: EdgeInsets.symmetric(horizontal: horizontal),
+              padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 24),
               sliver: SliverGrid.builder(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 220,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 0.74,
+                ),
                 itemCount: tracks.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  mainAxisSpacing: 26,
-                  crossAxisSpacing: 18,
-                  childAspectRatio: 0.78,
-                ),
-                itemBuilder: (context, index) => DiscoveryTrackCard(
-                  track: tracks[index],
-                  onPlay: () => _play(tracks[index]),
-                ),
+                itemBuilder: (context, index) {
+                  final track = tracks[index];
+                  return TrackCardBlock(
+                    track: track,
+                    onTap: () => _play(track),
+                  );
+                },
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  Future<void> _playAll(List<TrackSummary> tracks) async {
+    if (tracks.isEmpty) return;
+    await ref.read(audioEngineProvider.notifier).clearQueue();
+    await ref.read(audioEngineProvider.notifier).addAllToQueue(tracks);
+    await _play(tracks.first);
   }
 
   Future<void> _showArtistPicker({required bool firstRun}) async {
