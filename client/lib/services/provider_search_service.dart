@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/track.dart';
+import '../models/album.dart';
 
 class ProviderSearchException implements Exception {
   const ProviderSearchException(this.message);
@@ -14,14 +15,16 @@ class ProviderSearchException implements Exception {
 }
 
 class ProviderSearchService {
-  ProviderSearchService()
-    : _dio = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 4),
-          receiveTimeout: const Duration(seconds: 4),
-          headers: const {'User-Agent': 'Hi-Hat/1.0'},
-        ),
-      );
+  ProviderSearchService({Dio? dio})
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 4),
+              receiveTimeout: const Duration(seconds: 4),
+              headers: const {'User-Agent': 'Hi-Hat/1.0'},
+            ),
+          );
 
   static const instances = <String>[
     // Monochrome's current web client uses this v2.10 worker as its default
@@ -37,9 +40,10 @@ class ProviderSearchService {
   ];
   // Public browser application credentials used by Monochrome's open-source
   // HiFiClient for catalog metadata. This is an app token, not a user token.
-  static const _catalogClientId = 'txNoH4kkV41MfH25';
-  static const _catalogClientSecret =
-      'dQjy0MinCEvxi1O4UmxvxWnDjt4cgHBPw8ll6nYBk98=';
+  static const _catalogClientId = String.fromEnvironment('TIDAL_CLIENT_ID');
+  static const _catalogClientSecret = String.fromEnvironment(
+    'TIDAL_CLIENT_SECRET',
+  );
   final Dio _dio;
   final Map<String, _CachedSearch> _cache = {};
   final Map<String, DateTime> _unavailableUntil = {};
@@ -63,6 +67,11 @@ class ProviderSearchService {
     final stopwatch = Stopwatch()..start();
     Object? lastError;
     try {
+      if (_catalogClientId.isEmpty || _catalogClientSecret.isEmpty) {
+        throw const ProviderSearchException(
+          'Direct catalog credentials are not configured.',
+        );
+      }
       final results = await _searchCatalog(normalized, limit: limit);
       _cache[normalized] = _CachedSearch(DateTime.now(), results);
       developer.log(
@@ -106,6 +115,91 @@ class ProviderSearchService {
       lastError == null
           ? 'No music provider is configured.'
           : 'Music search is temporarily unavailable.',
+    );
+  }
+
+  Future<List<AlbumSummary>> searchAlbums(
+    String query, {
+    int limit = 20,
+  }) async {
+    final clean = _normalize(query);
+    if (clean.isEmpty) return const [];
+    Object? lastError;
+    for (final instance in instances) {
+      try {
+        final response = await _dio.get<dynamic>(
+          '$instance/search/',
+          queryParameters: {'s': clean},
+        );
+        final albums = _findSection(response.data, 'albums');
+        if (albums == null) continue;
+        return _maps(albums['items'])
+            .take(limit)
+            .map((item) => _mapAlbum(item))
+            .toList();
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw ProviderSearchException(
+      lastError == null
+          ? 'Album search is unavailable.'
+          : 'Album search is temporarily unavailable.',
+    );
+  }
+
+  Future<AlbumSummary> albumDetails(AlbumSummary album) async {
+    Object? lastError;
+    for (final instance in instances) {
+      try {
+        final response = await _dio.get<dynamic>(
+          '$instance/album/',
+          queryParameters: {'id': album.id},
+        );
+        final tracks = _findSection(response.data, 'tracks');
+        if (tracks == null) continue;
+        return album.copyWith(
+          tracks: _maps(tracks['items'])
+              .map((item) => _mapTrack(item, instance))
+              .toList(),
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw ProviderSearchException(
+      'Album tracks are unavailable: ${lastError ?? 'unsupported response'}',
+    );
+  }
+
+  static Map<dynamic, dynamic>? _findSection(dynamic value, String key) {
+    if (value is Map) {
+      final direct = value[key];
+      if (direct is Map && direct['items'] is List) return direct;
+      for (final child in value.values) {
+        final found = _findSection(child, key);
+        if (found != null) return found;
+      }
+    } else if (value is List) {
+      for (final child in value) {
+        final found = _findSection(child, key);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
+
+  static AlbumSummary _mapAlbum(Map<String, dynamic> item) {
+    final artist = _extractArtist(item);
+    final cover = item['cover']?.toString();
+    return AlbumSummary(
+      id: item['id'].toString(),
+      title: (item['title'] ?? 'Unknown album').toString(),
+      artist: artist,
+      artworkUrl: cover == null || cover.isEmpty
+          ? null
+          : 'https://resources.tidal.com/images/${cover.replaceAll('-', '/')}/640x640.jpg',
+      releaseDate: (item['releaseDate'] ?? item['year'])?.toString(),
     );
   }
 

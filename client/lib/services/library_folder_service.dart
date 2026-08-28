@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/app_database.dart';
 import 'flac_metadata.dart';
+import 'file_integrity.dart';
 import 'library_service.dart';
 
 const libraryFolderPreferenceKey = 'libraryFolderPath';
@@ -103,8 +103,8 @@ class LibraryFolderService {
       found++;
       try {
         final metadata = await FlacMetadataReader.read(entity);
-        final bytes = await entity.readAsBytes();
-        final digest = sha256.convert(bytes).toString();
+        final fileSize = await entity.length();
+        final digest = await sha256File(entity);
         final database = ref.read(databaseProvider);
         final duplicate = await database.findBySha256(digest);
         if (duplicate != null) {
@@ -137,7 +137,7 @@ class LibraryFolderService {
             sampleRate: Value(metadata.sampleRate),
             channels: Value(metadata.channels),
             durationSeconds: Value(metadata.durationSeconds),
-            fileSize: bytes.length,
+            fileSize: fileSize,
             year: Value(metadata.year),
             trackNumber: Value(metadata.trackNumber),
             discNumber: Value(metadata.discNumber),
@@ -203,8 +203,8 @@ class LibraryFolderService {
       try {
         await saf.copyToLocalFile(entry.file.uri, temporary.path);
         final metadata = await FlacMetadataReader.read(temporary);
-        final bytes = await temporary.readAsBytes();
-        final digest = sha256.convert(bytes).toString();
+        final fileSize = await temporary.length();
+        final digest = await sha256File(temporary);
         final database = ref.read(databaseProvider);
         final duplicate = await database.findBySha256(digest);
         if (duplicate != null && await File(duplicate.localPath).exists()) {
@@ -252,7 +252,7 @@ class LibraryFolderService {
             sampleRate: Value(metadata.sampleRate),
             channels: Value(metadata.channels),
             durationSeconds: Value(metadata.durationSeconds),
-            fileSize: bytes.length,
+            fileSize: fileSize,
             year: Value(metadata.year),
             trackNumber: Value(metadata.trackNumber),
             discNumber: Value(metadata.discNumber),

@@ -10,10 +10,9 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 });
 
 TrackSummary localTrackSummary(Track row) {
-  final bitrate =
-      row.durationSeconds != null && row.durationSeconds! > 0
-          ? ((row.fileSize * 8) / row.durationSeconds!).round()
-          : null;
+  final bitrate = row.durationSeconds != null && row.durationSeconds! > 0
+      ? ((row.fileSize * 8) / row.durationSeconds!).round()
+      : null;
   return TrackSummary(
     id: row.id,
     provider: row.provider,

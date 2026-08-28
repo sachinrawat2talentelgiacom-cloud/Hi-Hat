@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -10,9 +9,12 @@ import 'package:path/path.dart' as p;
 import '../../data/app_database.dart';
 import '../../services/audio_engine.dart';
 import '../../services/flac_metadata.dart';
+import '../../services/file_integrity.dart';
 import '../../services/library_folder_service.dart';
 import '../../services/library_service.dart';
 import '../../widgets/track_artwork.dart';
+import '../../services/user_data_store.dart';
+import '../player/song_actions.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -33,11 +35,28 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
+    final playlists = ref.watch(playlistProvider);
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(
           title: const Text('Local library'),
           actions: [
+            IconButton(
+              tooltip: 'Create playlist',
+              onPressed: () async {
+                final name = await askPlaylistName(context, 'Create playlist');
+                if (name != null) {
+                  final error = await ref
+                      .read(playlistProvider.notifier)
+                      .create(name);
+                  if (error != null && context.mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text(error)));
+                  }
+                }
+              },
+              icon: const Icon(Icons.playlist_add),
+            ),
             IconButton(
               tooltip: 'Scan music folder',
               onPressed: scanning ? null : _scanFolder,
@@ -56,6 +75,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             const SizedBox(width: 12),
           ],
         ),
+        SliverToBoxAdapter(child: _PlaylistsSection(state: playlists)),
         library.when(
           loading: () => const SliverFillRemaining(
             child: Center(child: CircularProgressIndicator()),
@@ -143,7 +163,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             color: Theme.of(context).colorScheme.outline,
                           ),
                         ),
-                        trailing: const Icon(Icons.play_arrow_rounded, size: 28),
+                        trailing: SongActionsButton(track: track),
                         onTap: () => ref
                             .read(audioEngineProvider.notifier)
                             .playLocal(track),
@@ -181,8 +201,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       }
       return;
     }
-    final bytes = await file.readAsBytes();
-    final digest = sha256.convert(bytes).toString();
+    final fileSize = await file.length();
+    final digest = await sha256File(file);
     final title = metadata.title ?? p.basenameWithoutExtension(path);
     final artist = metadata.artist ?? 'Unknown artist';
     final artworkPath = metadata.picture != null
@@ -211,7 +231,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             sampleRate: Value(metadata.sampleRate),
             channels: Value(metadata.channels),
             durationSeconds: Value(metadata.durationSeconds),
-            fileSize: bytes.length,
+            fileSize: fileSize,
             year: Value(metadata.year),
             trackNumber: Value(metadata.trackNumber),
             discNumber: Value(metadata.discNumber),
@@ -251,5 +271,124 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     } finally {
       if (mounted) setState(() => scanning = false);
     }
+  }
+}
+
+class _PlaylistsSection extends ConsumerWidget {
+  const _PlaylistsSection({required this.state});
+  final PlaylistState state;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (state.loading) return const LinearProgressIndicator();
+    if (state.playlists.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(24, 8, 24, 20),
+        child: Text('Custom playlists will appear here.'),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      child: Column(
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Playlists',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          for (final playlist in state.playlists)
+            Card(
+              child: ExpansionTile(
+                leading: const Icon(Icons.queue_music),
+                title: Text(playlist.name),
+                subtitle: Text('${playlist.tracks.length} songs'),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) async {
+                    if (value == 'rename') {
+                      final name = await askPlaylistName(
+                        context,
+                        'Rename playlist',
+                        initial: playlist.name,
+                      );
+                      if (name != null) {
+                        final error = await ref
+                            .read(playlistProvider.notifier)
+                            .rename(playlist.id, name);
+                        if (error != null && context.mounted) {
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(SnackBar(content: Text(error)));
+                        }
+                      }
+                    }
+                    if (value == 'delete' && context.mounted) {
+                      final yes = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: Text('Delete ${playlist.name}?'),
+                          content: const Text(
+                            'This removes the playlist, not downloaded songs.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (yes == true) {
+                        await ref
+                            .read(playlistProvider.notifier)
+                            .delete(playlist.id);
+                      }
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'rename', child: Text('Rename')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+                children: [
+                  if (playlist.tracks.isEmpty)
+                    const ListTile(
+                      title: Text(
+                        'This playlist is empty. Add songs from any song menu.',
+                      ),
+                    ),
+                  ReorderableListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: playlist.tracks.length,
+                    onReorderItem: (a, b) => ref
+                        .read(playlistProvider.notifier)
+                        .reorder(playlist.id, a, b),
+                    itemBuilder: (_, i) {
+                      final track = playlist.tracks[i];
+                      return ListTile(
+                        key: ValueKey('${playlist.id}:$i:${track.id}'),
+                        title: Text(track.displayTitle),
+                        subtitle: Text(track.artist),
+                        onTap: () => ref
+                            .read(audioEngineProvider.notifier)
+                            .playNow(track),
+                        trailing: SongActionsButton(
+                          track: track,
+                          playlistId: playlist.id,
+                          playlistIndex: i,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

@@ -44,14 +44,12 @@ class TrackArtwork extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: effectiveBorderRadius,
         border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.4),
+          color: Theme.of(context).colorScheme.outlineVariant
+              .withValues(alpha: 0.4),
           width: 1,
         ),
       ),
-      child: ClipRRect(
-        borderRadius: effectiveBorderRadius,
-        child: child,
-      ),
+      child: ClipRRect(borderRadius: effectiveBorderRadius, child: child),
     );
   }
 

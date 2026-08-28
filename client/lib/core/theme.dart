@@ -1,5 +1,99 @@
 import 'package:flutter/material.dart';
 
+@immutable
+class HiHatTokens extends ThemeExtension<HiHatTokens> {
+  const HiHatTokens({
+    required this.spaceXs,
+    required this.spaceSm,
+    required this.spaceMd,
+    required this.spaceLg,
+    required this.spaceXl,
+    required this.radiusSm,
+    required this.radiusMd,
+    required this.radiusPill,
+    required this.controlHeight,
+    required this.motionFast,
+    required this.motionBase,
+  });
+
+  final double spaceXs, spaceSm, spaceMd, spaceLg, spaceXl;
+  final double radiusSm, radiusMd, radiusPill, controlHeight;
+  final Duration motionFast, motionBase;
+
+  static const standard = HiHatTokens(
+    spaceXs: 4,
+    spaceSm: 8,
+    spaceMd: 16,
+    spaceLg: 24,
+    spaceXl: 40,
+    radiusSm: 6,
+    radiusMd: 12,
+    radiusPill: 999,
+    controlHeight: 48,
+    motionFast: Duration(milliseconds: 120),
+    motionBase: Duration(milliseconds: 220),
+  );
+
+  @override
+  HiHatTokens copyWith({
+    double? spaceXs,
+    double? spaceSm,
+    double? spaceMd,
+    double? spaceLg,
+    double? spaceXl,
+    double? radiusSm,
+    double? radiusMd,
+    double? radiusPill,
+    double? controlHeight,
+    Duration? motionFast,
+    Duration? motionBase,
+  }) => HiHatTokens(
+    spaceXs: spaceXs ?? this.spaceXs,
+    spaceSm: spaceSm ?? this.spaceSm,
+    spaceMd: spaceMd ?? this.spaceMd,
+    spaceLg: spaceLg ?? this.spaceLg,
+    spaceXl: spaceXl ?? this.spaceXl,
+    radiusSm: radiusSm ?? this.radiusSm,
+    radiusMd: radiusMd ?? this.radiusMd,
+    radiusPill: radiusPill ?? this.radiusPill,
+    controlHeight: controlHeight ?? this.controlHeight,
+    motionFast: motionFast ?? this.motionFast,
+    motionBase: motionBase ?? this.motionBase,
+  );
+
+  @override
+  HiHatTokens lerp(covariant HiHatTokens? other, double t) {
+    if (other == null) return this;
+    return HiHatTokens(
+      spaceXs: _lerp(spaceXs, other.spaceXs, t),
+      spaceSm: _lerp(spaceSm, other.spaceSm, t),
+      spaceMd: _lerp(spaceMd, other.spaceMd, t),
+      spaceLg: _lerp(spaceLg, other.spaceLg, t),
+      spaceXl: _lerp(spaceXl, other.spaceXl, t),
+      radiusSm: _lerp(radiusSm, other.radiusSm, t),
+      radiusMd: _lerp(radiusMd, other.radiusMd, t),
+      radiusPill: _lerp(radiusPill, other.radiusPill, t),
+      controlHeight: _lerp(controlHeight, other.controlHeight, t),
+      motionFast: Duration(
+        milliseconds: _lerp(
+          motionFast.inMilliseconds.toDouble(),
+          other.motionFast.inMilliseconds.toDouble(),
+          t,
+        ).round(),
+      ),
+      motionBase: Duration(
+        milliseconds: _lerp(
+          motionBase.inMilliseconds.toDouble(),
+          other.motionBase.inMilliseconds.toDouble(),
+          t,
+        ).round(),
+      ),
+    );
+  }
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
+}
+
 abstract final class HiHatColors {
   static const signal = Color(0xFFB7FF3C);
   static const chamber = Color(0xFF111311);
@@ -24,7 +118,7 @@ abstract final class HiHatTheme {
       surfaceContainerLow: Color(0xFF151815),
       surfaceContainer: HiHatColors.chamberRaised,
       surfaceContainerHigh: Color(0xFF212521),
-      outline: Color(0xFF626962),
+      outline: HiHatColors.trace,
       outlineVariant: Color(0xFF303530),
       shadow: Colors.black,
       scrim: Colors.black,
@@ -62,6 +156,10 @@ abstract final class HiHatTheme {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
+    extensions: const [HiHatTokens.standard],
+    focusColor: scheme.primary.withValues(alpha: .24),
+    hoverColor: scheme.onSurface.withValues(alpha: .06),
+    splashFactory: InkSparkle.splashFactory,
     textTheme: const TextTheme(
       displayLarge: TextStyle(
         fontSize: 54,
@@ -94,7 +192,7 @@ abstract final class HiHatTheme {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 72,
+      height: 68,
       backgroundColor: scheme.surfaceContainerLow,
       indicatorColor: scheme.primary.withValues(alpha: 0.18),
     ),
@@ -105,11 +203,19 @@ abstract final class HiHatTheme {
       minExtendedWidth: 184,
     ),
     inputDecorationTheme: InputDecorationTheme(
-      contentPadding: const EdgeInsets.symmetric(vertical: 18),
-      enabledBorder: UnderlineInputBorder(
-        borderSide: BorderSide(color: scheme.outline),
+      filled: true,
+      fillColor: scheme.surfaceContainerHigh,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(999),
+        borderSide: BorderSide.none,
       ),
-      focusedBorder: UnderlineInputBorder(
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(999),
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(999),
         borderSide: BorderSide(color: scheme.primary, width: 2),
       ),
     ),
@@ -117,7 +223,25 @@ abstract final class HiHatTheme {
       activeTrackColor: scheme.primary,
       inactiveTrackColor: scheme.outlineVariant,
       thumbColor: scheme.primary,
-      trackHeight: 2,
+      trackHeight: 4,
+      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+    ),
+    cardTheme: CardThemeData(
+      elevation: 0,
+      color: scheme.surfaceContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .7)),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        shape: const StadiumBorder(),
+      ),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(minimumSize: const Size.square(44)),
     ),
     dividerTheme: DividerThemeData(
       color: scheme.outlineVariant,

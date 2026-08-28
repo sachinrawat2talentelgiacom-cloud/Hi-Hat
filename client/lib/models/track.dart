@@ -29,7 +29,8 @@ class AudioQuality {
           channels: json['channels'] as int?,
           bitrate: json['bitrate'] as int?,
           label: json['label'] as String?,
-          audioModes: (json['audio_modes'] as List?)
+          audioModes:
+              (json['audio_modes'] as List?)
                   ?.map((e) => e.toString())
                   .toList(growable: false) ??
               const [],
@@ -77,13 +78,16 @@ class AudioQuality {
 
   static String _titleCase(String text) {
     if (text.isEmpty) return text;
-    return text.split(' ').map((word) {
-      if (word.isEmpty) return word;
-      if (word.toUpperCase() == 'HI-RES' || word.toUpperCase() == 'FLAC') {
-        return word.toUpperCase();
-      }
-      return word[0].toUpperCase() + word.substring(1).toLowerCase();
-    }).join(' ');
+    return text
+        .split(' ')
+        .map((word) {
+          if (word.isEmpty) return word;
+          if (word.toUpperCase() == 'HI-RES' || word.toUpperCase() == 'FLAC') {
+            return word.toUpperCase();
+          }
+          return word[0].toUpperCase() + word.substring(1).toLowerCase();
+        })
+        .join(' ');
   }
 }
 
@@ -203,32 +207,69 @@ class TrackSummary {
   }
 
   factory TrackSummary.fromJson(Map<String, dynamic> json) => TrackSummary(
-        id: json['id'] as String,
-        provider: json['provider'] as String,
-        providerTrackId: json['provider_track_id'] as String,
-        title: json['title'] as String,
-        artist: json['artist'] as String,
-        album: json['album'] as String?,
-        artworkUrl: json['artwork_url'] as String?,
-        durationSeconds: (json['duration_seconds'] as num?)?.toDouble(),
-        explicit: json['explicit'] as bool? ?? false,
-        quality: AudioQuality.fromJson(
-          json['available_quality'] as Map<String, dynamic>?,
-        ),
-        year: json['year'] as String?,
-        trackNumber: json['track_number'] as int?,
-        discNumber: json['disc_number'] as int?,
-        genre: json['genre'] as String?,
-        bpm: json['bpm'] as int?,
-        key: json['key'] as String?,
-        isrc: json['isrc'] as String?,
-        copyright: json['copyright'] as String?,
-        replayGain: (json['replay_gain'] as num?)?.toDouble(),
-        peak: (json['peak'] as num?)?.toDouble(),
-        fileSize: json['file_size'] as int?,
-        version: json['version'] as String?,
-        vibrantColor: json['vibrant_color'] as String?,
-      );
+    id: json['id'] as String,
+    provider: json['provider'] as String,
+    providerTrackId: json['provider_track_id'] as String,
+    title: json['title'] as String,
+    artist: json['artist'] as String,
+    album: json['album'] as String?,
+    artworkUrl: json['artwork_url'] as String?,
+    durationSeconds: (json['duration_seconds'] as num?)?.toDouble(),
+    explicit: json['explicit'] as bool? ?? false,
+    quality: AudioQuality.fromJson(
+      json['available_quality'] as Map<String, dynamic>?,
+    ),
+    year: json['year'] as String?,
+    trackNumber: json['track_number'] as int?,
+    discNumber: json['disc_number'] as int?,
+    genre: json['genre'] as String?,
+    bpm: json['bpm'] as int?,
+    key: json['key'] as String?,
+    isrc: json['isrc'] as String?,
+    copyright: json['copyright'] as String?,
+    replayGain: (json['replay_gain'] as num?)?.toDouble(),
+    peak: (json['peak'] as num?)?.toDouble(),
+    fileSize: json['file_size'] as int?,
+    version: json['version'] as String?,
+    vibrantColor: json['vibrant_color'] as String?,
+    localPath: json['local_path'] as String?,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'provider': provider,
+    'provider_track_id': providerTrackId,
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'artwork_url': artworkUrl,
+    'duration_seconds': durationSeconds,
+    'explicit': explicit,
+    'local_path': localPath,
+    'year': year,
+    'track_number': trackNumber,
+    'disc_number': discNumber,
+    'genre': genre,
+    'bpm': bpm,
+    'key': key,
+    'isrc': isrc,
+    'copyright': copyright,
+    'replay_gain': replayGain,
+    'peak': peak,
+    'file_size': fileSize,
+    'version': version,
+    'vibrant_color': vibrantColor,
+    'available_quality': {
+      'codec': quality.codec,
+      'lossless': quality.lossless,
+      'bit_depth': quality.bitDepth,
+      'sample_rate': quality.sampleRate,
+      'channels': quality.channels,
+      'bitrate': quality.bitrate,
+      'label': quality.label,
+      'audio_modes': quality.audioModes,
+    },
+  };
 
   TrackSummary copyWith({
     String? localPath,
@@ -247,31 +288,30 @@ class TrackSummary {
     int? fileSize,
     String? version,
     String? vibrantColor,
-  }) =>
-      TrackSummary(
-        id: id,
-        provider: provider,
-        providerTrackId: providerTrackId,
-        title: title,
-        artist: artist,
-        album: album,
-        artworkUrl: artworkUrl ?? this.artworkUrl,
-        durationSeconds: durationSeconds,
-        explicit: explicit,
-        quality: quality ?? this.quality,
-        localPath: localPath ?? this.localPath,
-        year: year ?? this.year,
-        trackNumber: trackNumber ?? this.trackNumber,
-        discNumber: discNumber ?? this.discNumber,
-        genre: genre ?? this.genre,
-        bpm: bpm ?? this.bpm,
-        key: key ?? this.key,
-        isrc: isrc ?? this.isrc,
-        copyright: copyright ?? this.copyright,
-        replayGain: replayGain ?? this.replayGain,
-        peak: peak ?? this.peak,
-        fileSize: fileSize ?? this.fileSize,
-        version: version ?? this.version,
-        vibrantColor: vibrantColor ?? this.vibrantColor,
-      );
+  }) => TrackSummary(
+    id: id,
+    provider: provider,
+    providerTrackId: providerTrackId,
+    title: title,
+    artist: artist,
+    album: album,
+    artworkUrl: artworkUrl ?? this.artworkUrl,
+    durationSeconds: durationSeconds,
+    explicit: explicit,
+    quality: quality ?? this.quality,
+    localPath: localPath ?? this.localPath,
+    year: year ?? this.year,
+    trackNumber: trackNumber ?? this.trackNumber,
+    discNumber: discNumber ?? this.discNumber,
+    genre: genre ?? this.genre,
+    bpm: bpm ?? this.bpm,
+    key: key ?? this.key,
+    isrc: isrc ?? this.isrc,
+    copyright: copyright ?? this.copyright,
+    replayGain: replayGain ?? this.replayGain,
+    peak: peak ?? this.peak,
+    fileSize: fileSize ?? this.fileSize,
+    version: version ?? this.version,
+    vibrantColor: vibrantColor ?? this.vibrantColor,
+  );
 }

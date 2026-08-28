@@ -61,6 +61,17 @@ puro flutter analyze
 puro flutter test
 ```
 
+## Catalog and lyrics configuration
+
+Hi Hat uses the configured Monochrome-compatible provider endpoints for song and album metadata. Optional direct TIDAL catalog access is compiled in only when application credentials are supplied at build time; no secret is stored in the repository:
+
+```powershell
+puro flutter build windows --release --dart-define=TIDAL_CLIENT_ID=<id> --dart-define=TIDAL_CLIENT_SECRET=<secret>
+puro flutter build apk --release --dart-define=TIDAL_CLIENT_ID=<id> --dart-define=TIDAL_CLIENT_SECRET=<secret>
+```
+
+Without these values, search automatically uses the credential-free configured provider endpoints. Lyrics are fetched from [LRCLIB](https://lrclib.net/), attributed in the player, and successful responses are cached on-device. LRCLIB requires no API key. Queue, volume, mute restoration, shuffle/repeat settings, related autoplay, and custom playlists use a versioned local preferences schema (`playback_state_v2` and `custom_playlists_v2`); the playlist loader imports the earlier `custom_playlists_v1` key when present.
+
 ## Safety boundary
 
 Hi Hat does not bypass authentication, DRM, paywalls, CAPTCHAs, or other access controls. It rejects encrypted manifests and should be used only with files the user is permitted to access and download.

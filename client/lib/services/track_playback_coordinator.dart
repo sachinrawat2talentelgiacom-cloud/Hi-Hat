@@ -46,7 +46,11 @@ class TrackPlaybackCoordinator {
         if (!folderReady) {
           ref
               .read(downloadServiceProvider.notifier)
-              .fail(track.id, 'Choose a music folder before downloading.', track: track);
+              .fail(
+                track.id,
+                'Choose a music folder before downloading.',
+                track: track,
+              );
           _activeSessions.remove(track.id);
           return null;
         }
@@ -61,7 +65,11 @@ class TrackPlaybackCoordinator {
     } else if (local == null) {
       ref
           .read(downloadServiceProvider.notifier)
-          .fail(track.id, 'This provider is not supported for acquisition.', track: track);
+          .fail(
+            track.id,
+            'This provider is not supported for acquisition.',
+            track: track,
+          );
     }
     if (local != null) {
       await ref.read(audioEngineProvider.notifier).playLocal(local);
@@ -131,7 +139,6 @@ class TrackPlaybackCoordinator {
     try {
       final selected = await folders.chooseFolder();
       if (selected == null) return false;
-      await folders.scanConfiguredFolder();
       return true;
     } on FileSystemException {
       if (navigator.mounted) {

@@ -10,6 +10,7 @@ import '../../services/download_service.dart';
 import '../../services/provider_search_service.dart';
 import '../../services/track_playback_coordinator.dart';
 import '../../widgets/track_artwork.dart';
+import '../player/song_actions.dart';
 import '../search/discovery_controller.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -47,10 +48,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             child: Row(
               children: [
-                Text(
-                  'Home',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
+                Text('Home', style: Theme.of(context).textTheme.headlineLarge),
                 const Spacer(),
                 IconButton(
                   tooltip: 'Edit artists and genres',
@@ -334,6 +332,10 @@ class DiscoveryTrackCard extends ConsumerWidget {
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.outline,
               ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: SongActionsButton(track: track),
             ),
           ],
         ),

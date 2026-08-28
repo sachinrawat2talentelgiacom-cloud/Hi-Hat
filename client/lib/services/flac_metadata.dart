@@ -137,7 +137,8 @@ class FlacMetadataReader {
         throw const FormatException('The FLAC stream information is missing.');
       }
 
-      final dateStr = comments['DATE'] ??
+      final dateStr =
+          comments['DATE'] ??
           comments['YEAR'] ??
           comments['ORIGINALDATE'] ??
           comments['ORIGINALYEAR'];
@@ -181,7 +182,8 @@ class FlacMetadataReader {
 
       return FlacMetadata(
         title: comments['TITLE'],
-        artist: comments['ARTIST'] ??
+        artist:
+            comments['ARTIST'] ??
             comments['ALBUMARTIST'] ??
             comments['PERFORMER'],
         album: comments['ALBUM'],
@@ -192,7 +194,8 @@ class FlacMetadataReader {
         bpm: bpm,
         key: comments['KEY'] ?? comments['INITIALKEY'],
         isrc: comments['ISRC'],
-        copyright: comments['COPYRIGHT'] ??
+        copyright:
+            comments['COPYRIGHT'] ??
             comments['ORGANIZATION'] ??
             comments['LABEL'] ??
             comments['PUBLISHER'],
@@ -247,7 +250,9 @@ class FlacMetadataReader {
 
       final dataLength = readUint32();
       if (offset + dataLength > block.length) return null;
-      final data = Uint8List.fromList(block.sublist(offset, offset + dataLength));
+      final data = Uint8List.fromList(
+        block.sublist(offset, offset + dataLength),
+      );
 
       return FlacPicture(
         pictureType: pictureType,

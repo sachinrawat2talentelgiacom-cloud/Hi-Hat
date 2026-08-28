@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -8,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../data/app_database.dart';
 import '../models/track.dart';
 import 'flac_metadata.dart';
+import 'file_integrity.dart';
 import 'library_folder_service.dart';
 import 'library_service.dart';
 
@@ -37,8 +37,8 @@ class LocalImportService {
       );
     }
 
-    final bytes = await source.readAsBytes();
-    final digest = sha256.convert(bytes).toString();
+    final fileSize = await source.length();
+    final digest = await sha256File(source);
     final AppDatabase database = _database ?? ref!.read(databaseProvider);
     final duplicate = await database.findBySha256(digest);
     if (duplicate != null && await File(duplicate.localPath).exists()) {
@@ -69,7 +69,9 @@ class LocalImportService {
     await folder.create(recursive: true);
     final finalPath = p.join(folder.path, '${safePathSegment(title)}.flac');
     final partPath = '$finalPath.part';
-    await File(partPath).writeAsBytes(bytes, flush: true);
+    final partFile = File(partPath);
+    if (await partFile.exists()) await partFile.delete();
+    await source.copy(partPath);
     await FlacMetadataReader.read(File(partPath));
     final finalFile = await File(partPath).rename(finalPath);
     await ref
@@ -96,7 +98,7 @@ class LocalImportService {
       sampleRate: metadata.sampleRate,
       channels: metadata.channels,
       bitrate: metadata.durationSeconds > 0
-          ? ((bytes.length * 8) / metadata.durationSeconds).round()
+          ? ((fileSize * 8) / metadata.durationSeconds).round()
           : null,
       label: 'verified',
     );
@@ -128,7 +130,7 @@ class LocalImportService {
         sampleRate: Value(metadata.sampleRate),
         channels: Value(metadata.channels),
         durationSeconds: Value(metadata.durationSeconds),
-        fileSize: bytes.length,
+        fileSize: fileSize,
         year: Value(year),
         trackNumber: Value(trackNumber),
         discNumber: Value(discNumber),
@@ -156,7 +158,7 @@ class LocalImportService {
       explicit: requested.explicit,
       quality: quality,
       localPath: finalFile.path,
-      fileSize: bytes.length,
+      fileSize: fileSize,
       year: year,
       trackNumber: trackNumber,
       discNumber: discNumber,

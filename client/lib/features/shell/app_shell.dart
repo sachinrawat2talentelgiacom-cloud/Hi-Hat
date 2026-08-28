@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/audio_engine.dart';
+import '../../core/theme.dart';
 import '../browser_acquisition/acquisition_dock.dart';
 import '../home/home_screen.dart';
 import '../library/library_screen.dart';
@@ -35,6 +36,14 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final playback = ref.watch(audioEngineProvider);
+    final tokens = Theme.of(context).extension<HiHatTokens>()!;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    Widget page() => AnimatedSwitcher(
+      duration: reduceMotion ? Duration.zero : tokens.motionBase,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: KeyedSubtree(key: ValueKey(selected), child: pages[selected]),
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final expanded = constraints.maxWidth >= 980;
@@ -78,27 +87,23 @@ class _AppShellState extends ConsumerState<AppShell> {
                         ],
                       ),
                       const VerticalDivider(),
-                      Expanded(child: pages[selected]),
-                      if (selected != 3) ...[
-                        const VerticalDivider(),
-                        SizedBox(
-                          width: constraints.maxWidth >= 1320 ? 440 : 360,
-                          child: PlayerPanel(track: playback.track),
-                        ),
-                      ],
+                      Expanded(child: page()),
                     ],
                   ),
                   const AcquisitionDock(),
                 ],
               ),
             ),
+            bottomNavigationBar: playback.track == null
+                ? null
+                : const MiniPlayer(),
           );
         }
         return Scaffold(
           body: SafeArea(
             child: Stack(
               children: [
-                Positioned.fill(child: pages[selected]),
+                Positioned.fill(child: page()),
                 const AcquisitionDock(),
               ],
             ),

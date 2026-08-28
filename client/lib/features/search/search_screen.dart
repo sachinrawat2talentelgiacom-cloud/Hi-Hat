@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/track.dart';
+import '../../models/album.dart';
 import '../../services/download_service.dart';
 import '../../services/provider_search_service.dart';
 import '../../services/track_playback_coordinator.dart';
 import '../../widgets/track_artwork.dart';
+import '../player/song_actions.dart';
 import 'search_controller.dart';
+import 'album_screen.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -21,6 +24,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final controller = TextEditingController();
   final focusNode = FocusNode();
   Timer? debounce;
+  AsyncValue<List<AlbumSummary>> albums = const AsyncValue.data([]);
+  int albumGeneration = 0;
+
+  Future<void> _searchAll(String value) async {
+    ref.read(searchControllerProvider.notifier).search(value);
+    final generation = ++albumGeneration;
+    setState(() => albums = const AsyncValue.loading());
+    try {
+      final result = await ref
+          .read(providerSearchServiceProvider)
+          .searchAlbums(value);
+      if (mounted && generation == albumGeneration) {
+        setState(() => albums = AsyncValue.data(result));
+      }
+    } catch (error, stack) {
+      if (mounted && generation == albumGeneration) {
+        setState(() => albums = AsyncValue.error(error, stack));
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -48,9 +71,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      'Search',
-                      style: Theme.of(context).textTheme.headlineLarge,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hi Hat',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        Text(
+                          'Search',
+                          style: Theme.of(context).textTheme.headlineLarge,
+                        ),
+                      ],
                     ),
                     const Spacer(),
                     Semantics(
@@ -59,18 +91,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 54),
+                const SizedBox(height: 28),
                 TextField(
                   controller: controller,
                   focusNode: focusNode,
                   autofocus: MediaQuery.sizeOf(context).width >= 980,
-                  style: Theme.of(context).textTheme.displayMedium,
+                  style: Theme.of(context).textTheme.titleLarge,
                   textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
-                    hintText: 'Search for a song',
+                    hintText: 'Search songs, artists, and albums',
                     prefixIcon: const Padding(
                       padding: EdgeInsets.only(right: 18),
-                      child: Icon(Icons.search, size: 36),
+                      child: Icon(Icons.search, size: 24),
                     ),
                     prefixIconConstraints: const BoxConstraints(
                       minWidth: 48,
@@ -84,18 +116,76 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ref.read(searchControllerProvider.notifier).cancel();
                       return;
                     }
-                    debounce = Timer(const Duration(seconds: 2), () {
-                      ref.read(searchControllerProvider.notifier).search(value);
-                    });
+                    debounce = Timer(
+                      const Duration(milliseconds: 500),
+                      () => _searchAll(value),
+                    );
                   },
-                  onSubmitted: (value) =>
-                      ref.read(searchControllerProvider.notifier).search(value),
+                  onSubmitted: _searchAll,
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 16),
                 const _CalibrationLine(),
                 const SizedBox(height: 32),
               ],
             ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: albums.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (_, _) => const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Text(
+                'Album results are temporarily unavailable. Song results are shown below.',
+              ),
+            ),
+            data: (items) => items.isEmpty
+                ? const SizedBox.shrink()
+                : SizedBox(
+                    height: 210,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: items.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 14),
+                      itemBuilder: (_, i) {
+                        final album = items[i];
+                        return SizedBox(
+                          width: 150,
+                          child: InkWell(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => AlbumScreen(album: album),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TrackArtwork(
+                                  artworkUrl: album.artworkUrl,
+                                  size: 150,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  album.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  album.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
           ),
         ),
         search.when(
@@ -131,7 +221,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 hasScrollBody: false,
                 child: _SearchMessage(
                   icon: hasQuery ? Icons.search_off : Icons.graphic_eq,
-                  title: hasQuery ? 'No tracks found' : 'One search. One local copy.',
+                  title: hasQuery
+                      ? 'No tracks found'
+                      : 'One search. One local copy.',
                   body: hasQuery
                       ? 'Try a different song, artist, or album name.'
                       : 'Find a track, verify the lossless source, and keep it on this device.',
@@ -236,8 +328,8 @@ class TrackResultTile extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Row(
@@ -303,6 +395,7 @@ class TrackResultTile extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 12),
+              SongActionsButton(track: track),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
