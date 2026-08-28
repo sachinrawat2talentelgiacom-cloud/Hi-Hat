@@ -96,13 +96,19 @@ class DiscoveryService {
         .where((artist) => artist.isNotEmpty)
         .toList(growable: false);
     final seeds = genreSeedsFor(cleanArtists, genres);
+    final prioritizedSeeds = seeds.take(3).toList(growable: false);
     final ownTracks = <TrackSummary>[];
     final similarTracks = <TrackSummary>[];
     var successfulSearches = 0;
 
-    final artistResults = await Future.wait(
-      cleanArtists.map((artist) => _safeSearch(artist)),
-    );
+    final allSearches = await Future.wait([
+      ...cleanArtists.map((artist) => _safeSearch(artist)),
+      ...prioritizedSeeds.map((seed) => _safeSearch(seed)),
+    ]);
+
+    final artistResults = allSearches.sublist(0, cleanArtists.length);
+    final seedResults = allSearches.sublist(cleanArtists.length);
+
     for (var index = 0; index < artistResults.length; index++) {
       final result = artistResults[index];
       if (result.succeeded) successfulSearches++;
@@ -113,7 +119,6 @@ class DiscoveryService {
       );
     }
 
-    final seedResults = await Future.wait(seeds.map(_safeSearch));
     final ownIds = ownTracks.map((track) => track.providerTrackId).toSet();
     for (final result in seedResults) {
       if (result.succeeded) successfulSearches++;

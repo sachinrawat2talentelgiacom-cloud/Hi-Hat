@@ -274,8 +274,8 @@ class DiscoveryTrackCard extends ConsumerWidget {
                 fit: StackFit.expand,
                 children: [
                   TrackArtwork(
-                    artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
-                    highRes: true,
+                    artworkUrl: track.artworkUrl ?? track.highResArtworkUrl,
+                    highRes: false,
                     width: double.infinity,
                     height: double.infinity,
                     iconSize: 48,

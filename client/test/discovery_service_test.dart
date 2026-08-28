@@ -1,8 +1,12 @@
 import 'dart:math';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hi_hat/features/search/discovery_controller.dart';
 import 'package:hi_hat/models/track.dart';
+import 'package:hi_hat/services/artist_preferences_store.dart';
 import 'package:hi_hat/services/discovery_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 TrackSummary track(String id, {String artist = 'Artist'}) => TrackSummary(
   id: 'monochrome:$id',
@@ -14,6 +18,9 @@ TrackSummary track(String id, {String artist = 'Artist'}) => TrackSummary(
 );
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
   test('artist genre mapping combines known artists and selected genres', () {
     final seeds = DiscoveryService.genreSeedsFor(
       const ['Daft Punk', 'Unknown Artist'],
@@ -116,5 +123,44 @@ void main() {
       service.buildFeed(artists: const ['Artist'], genres: const {'Pop'}),
       throwsA(isA<DiscoveryException>()),
     );
+  });
+
+  test('artist preferences store saves and restores cached feed', () async {
+    final store = const ArtistPreferencesStore();
+    final sampleTracks = [
+      track('101', artist: 'Daft Punk'),
+      track('102', artist: 'Adele'),
+    ];
+
+    await store.saveCachedFeed(sampleTracks);
+    final restored = await store.loadCachedFeed();
+    final cachedTime = await store.loadCachedFeedTime();
+
+    expect(restored.length, 2);
+    expect(restored.first.title, 'Track 101');
+    expect(restored.first.artist, 'Daft Punk');
+    expect(cachedTime, isNotNull);
+
+    await store.clearCachedFeed();
+    final afterClear = await store.loadCachedFeed();
+    expect(afterClear, isEmpty);
+  });
+
+  test('discovery controller loads cached feed immediately on startup', () async {
+    final store = const ArtistPreferencesStore();
+    await store.save(artists: ['Daft Punk'], genres: {});
+    final sampleTracks = [track('101', artist: 'Daft Punk')];
+    await store.saveCachedFeed(sampleTracks);
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final controller = container.read(discoveryControllerProvider.notifier);
+    await controller.loadSaved();
+
+    final state = container.read(discoveryControllerProvider);
+    expect(state.value, isNotNull);
+    expect(state.value!.length, 1);
+    expect(state.value!.first.title, 'Track 101');
   });
 }

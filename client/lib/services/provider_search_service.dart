@@ -47,12 +47,13 @@ class ProviderSearchService {
   final Dio _dio;
   final Map<String, _CachedSearch> _cache = {};
   final Map<String, DateTime> _unavailableUntil = {};
+  String? _preferredInstance;
   String? _catalogToken;
   DateTime? _catalogTokenExpiresAt;
   Future<String>? _catalogTokenRequest;
 
   static const cacheTtl = Duration(minutes: 7);
-  static const providerCooldown = Duration(seconds: 45);
+  static const providerCooldown = Duration(minutes: 2);
 
   Future<List<TrackSummary>> search(String query, {int limit = 30}) async {
     final normalized = _normalize(query);
@@ -66,27 +67,30 @@ class ProviderSearchService {
 
     final stopwatch = Stopwatch()..start();
     Object? lastError;
-    try {
-      if (_catalogClientId.isEmpty || _catalogClientSecret.isEmpty) {
-        throw const ProviderSearchException(
-          'Direct catalog credentials are not configured.',
+    if (_catalogClientId.isNotEmpty && _catalogClientSecret.isNotEmpty) {
+      try {
+        final results = await _searchCatalog(normalized, limit: limit);
+        _cache[normalized] = _CachedSearch(DateTime.now(), results);
+        developer.log(
+          'search_latency_ms=${stopwatch.elapsedMilliseconds} source=tidal_catalog',
+          name: 'HiHat',
         );
+        return results;
+      } catch (error) {
+        lastError = error;
+        developer.log('catalog_search_failed error=$error', name: 'HiHat');
       }
-      final results = await _searchCatalog(normalized, limit: limit);
-      _cache[normalized] = _CachedSearch(DateTime.now(), results);
-      developer.log(
-        'search_latency_ms=${stopwatch.elapsedMilliseconds} source=tidal_catalog',
-        name: 'HiHat',
-      );
-      return results;
-    } catch (error) {
-      lastError = error;
-      developer.log('catalog_search_failed error=$error', name: 'HiHat');
     }
-    for (final instance in instances) {
+
+    final now = DateTime.now();
+    final orderedInstances = <String>[
+      ?_preferredInstance,
+      ...instances.where((inst) => inst != _preferredInstance),
+    ];
+
+    for (final instance in orderedInstances) {
       final unavailableUntil = _unavailableUntil[instance];
-      if (unavailableUntil != null &&
-          unavailableUntil.isAfter(DateTime.now())) {
+      if (unavailableUntil != null && unavailableUntil.isAfter(now)) {
         continue;
       }
       try {
@@ -101,13 +105,17 @@ class ProviderSearchService {
             .toList(growable: false);
         _cache[normalized] = _CachedSearch(DateTime.now(), results);
         _unavailableUntil.remove(instance);
+        _preferredInstance = instance;
         developer.log(
-          'search_latency_ms=${stopwatch.elapsedMilliseconds} cache_hit=false',
+          'search_latency_ms=${stopwatch.elapsedMilliseconds} cache_hit=false instance=$instance',
           name: 'HiHat',
         );
         return results;
       } catch (error) {
         lastError = error;
+        if (_preferredInstance == instance) {
+          _preferredInstance = null;
+        }
         _unavailableUntil[instance] = DateTime.now().add(providerCooldown);
       }
     }

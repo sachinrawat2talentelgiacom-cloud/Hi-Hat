@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,20 +17,38 @@ class DiscoveryController
   List<String> _artists = const [];
   Set<String> _genres = const {};
   int _generation = 0;
+  bool _isRefreshing = false;
 
   List<String> get artists => _artists;
   Set<String> get genres => _genres;
   bool get hasArtists => _artists.isNotEmpty;
+  bool get isRefreshing => _isRefreshing;
 
   Future<void> loadSaved() async {
     try {
-      final preferences = await ref.read(artistPreferencesStoreProvider).load();
+      final store = ref.read(artistPreferencesStoreProvider);
+      final preferences = await store.load();
       _artists = preferences.artists;
       _genres = preferences.genres;
       if (_artists.isEmpty) {
         state = const AsyncValue.data([]);
         return;
       }
+
+      // Fast-path: immediately display cached feed if available (0ms startup latency)
+      final cachedTracks = await store.loadCachedFeed();
+      if (cachedTracks.isNotEmpty) {
+        state = AsyncValue.data(cachedTracks);
+        final cachedTime = await store.loadCachedFeedTime();
+        final isStale = cachedTime == null ||
+            DateTime.now().difference(cachedTime) > const Duration(minutes: 20);
+        if (isStale) {
+          unawaited(_silentRefresh());
+        }
+        return;
+      }
+
+      // If no cached feed exists yet, fetch and display
       await refresh();
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
@@ -65,6 +84,7 @@ class DiscoveryController
     if (_artists.isEmpty) {
       _generation++;
       state = const AsyncValue.data([]);
+      await ref.read(artistPreferencesStoreProvider).clearCachedFeed();
       return;
     }
     await refresh();
@@ -81,11 +101,33 @@ class DiscoveryController
       final tracks = await ref
           .read(discoveryServiceProvider)
           .buildFeed(artists: _artists, genres: _genres);
-      if (generation == _generation) state = AsyncValue.data(tracks);
+      if (generation == _generation) {
+        state = AsyncValue.data(tracks);
+        await ref.read(artistPreferencesStoreProvider).saveCachedFeed(tracks);
+      }
     } catch (error, stackTrace) {
       if (generation == _generation) {
         state = AsyncValue.error(error, stackTrace);
       }
+    }
+  }
+
+  Future<void> _silentRefresh() async {
+    if (_artists.isEmpty || _isRefreshing) return;
+    _isRefreshing = true;
+    final generation = ++_generation;
+    try {
+      final tracks = await ref
+          .read(discoveryServiceProvider)
+          .buildFeed(artists: _artists, genres: _genres);
+      if (generation == _generation) {
+        state = AsyncValue.data(tracks);
+        await ref.read(artistPreferencesStoreProvider).saveCachedFeed(tracks);
+      }
+    } catch (error) {
+      developer.log('Silent discovery refresh skipped: $error', name: 'HiHat');
+    } finally {
+      _isRefreshing = false;
     }
   }
 
