@@ -249,18 +249,40 @@ class _Volume extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => Semantics(
     label: 'Volume ${(state.volume * 100).round()} percent',
-    child: Row(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IconButton(
-          tooltip: state.muted ? 'Unmute' : 'Mute',
-          onPressed: ref.read(audioEngineProvider.notifier).toggleMute,
-          icon: Icon(state.muted ? Icons.volume_off : Icons.volume_up),
-        ),
-        Expanded(
-          child: Slider(
-            value: state.volume,
-            onChanged: ref.read(audioEngineProvider.notifier).setVolume,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 18, 12, 0),
+          child: Row(
+            children: [
+              Text(
+                'OUTPUT LEVEL',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const Spacer(),
+              Text('${(state.volume * 100).round()}%'),
+            ],
           ),
+        ),
+        Row(
+          children: [
+            IconButton(
+              tooltip: state.muted ? 'Unmute' : 'Mute',
+              onPressed: ref.read(audioEngineProvider.notifier).toggleMute,
+              icon: Icon(
+                state.muted
+                    ? Icons.volume_off_rounded
+                    : Icons.volume_up_rounded,
+              ),
+            ),
+            Expanded(
+              child: Slider(
+                value: state.volume,
+                onChanged: ref.read(audioEngineProvider.notifier).setVolume,
+              ),
+            ),
+          ],
         ),
       ],
     ),

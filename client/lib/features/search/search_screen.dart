@@ -100,14 +100,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
                     hintText: 'Search songs, artists, and albums',
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.only(right: 18),
-                      child: Icon(Icons.search, size: 24),
+                    prefixIcon: const SizedBox(
+                      width: 58,
+                      height: 58,
+                      child: Center(
+                        child: Icon(Icons.search_rounded, size: 23),
+                      ),
                     ),
                     prefixIconConstraints: const BoxConstraints(
-                      minWidth: 48,
-                      minHeight: 48,
+                      minWidth: 58,
+                      minHeight: 58,
                     ),
+                    suffixIcon: controller.text.isEmpty
+                        ? (MediaQuery.sizeOf(context).width >= 700
+                              ? const Padding(
+                                  padding: EdgeInsets.only(right: 16),
+                                  child: Center(
+                                    widthFactor: 1,
+                                    child: Text('ENTER'),
+                                  ),
+                                )
+                              : null)
+                        : IconButton(
+                            tooltip: 'Clear search',
+                            onPressed: () {
+                              controller.clear();
+                              ref
+                                  .read(searchControllerProvider.notifier)
+                                  .cancel();
+                              setState(() {});
+                              focusNode.requestFocus();
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
                   ),
                   onChanged: (value) {
                     setState(() {});

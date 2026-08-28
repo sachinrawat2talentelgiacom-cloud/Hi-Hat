@@ -95,12 +95,14 @@ class HiHatTokens extends ThemeExtension<HiHatTokens> {
 }
 
 abstract final class HiHatColors {
-  static const signal = Color(0xFFB7FF3C);
-  static const chamber = Color(0xFF111311);
-  static const chamberRaised = Color(0xFF191C19);
-  static const mineral = Color(0xFFE8ECE6);
-  static const trace = Color(0xFF90988F);
-  static const aluminum = Color(0xFFC9CFCA);
+  static const signal = Color(0xFF6EA8FF);
+  static const chamber = Color(0xFF0B1020);
+  static const chamberRaised = Color(0xFF121A2C);
+  static const mineral = Color(0xFFEEF2F8);
+  static const trace = Color(0xFFA8B3C7);
+  static const aluminum = Color(0xFFD4DCEC);
+  static const tape = Color(0xFF1B2740);
+  static const cue = Color(0xFFF2B84B);
 }
 
 abstract final class HiHatTheme {
@@ -108,47 +110,47 @@ abstract final class HiHatTheme {
     const ColorScheme(
       brightness: Brightness.dark,
       primary: HiHatColors.signal,
-      onPrimary: Color(0xFF182100),
-      secondary: HiHatColors.aluminum,
-      onSecondary: Color(0xFF202421),
+      onPrimary: Color(0xFF071326),
+      secondary: HiHatColors.cue,
+      onSecondary: Color(0xFF271900),
       error: Color(0xFFFFB4AB),
       onError: Color(0xFF690005),
       surface: HiHatColors.chamber,
       onSurface: HiHatColors.mineral,
-      surfaceContainerLow: Color(0xFF151815),
+      surfaceContainerLow: Color(0xFF0F1627),
       surfaceContainer: HiHatColors.chamberRaised,
-      surfaceContainerHigh: Color(0xFF212521),
+      surfaceContainerHigh: HiHatColors.tape,
       outline: HiHatColors.trace,
-      outlineVariant: Color(0xFF303530),
+      outlineVariant: Color(0xFF2B3955),
       shadow: Colors.black,
       scrim: Colors.black,
       inverseSurface: HiHatColors.mineral,
       onInverseSurface: HiHatColors.chamber,
-      inversePrimary: Color(0xFF456900),
+      inversePrimary: Color(0xFF245EAA),
     ),
   );
 
   static ThemeData get light => _base(
     const ColorScheme(
       brightness: Brightness.light,
-      primary: Color(0xFF426800),
+      primary: Color(0xFF245EAA),
       onPrimary: Colors.white,
-      secondary: Color(0xFF52604D),
+      secondary: Color(0xFF7B5700),
       onSecondary: Colors.white,
       error: Color(0xFFBA1A1A),
       onError: Colors.white,
-      surface: Color(0xFFF7FAF5),
-      onSurface: Color(0xFF191D18),
-      surfaceContainerLow: Color(0xFFF0F3ED),
-      surfaceContainer: Color(0xFFE9EDE6),
-      surfaceContainerHigh: Color(0xFFE2E6DE),
-      outline: Color(0xFF747A71),
-      outlineVariant: Color(0xFFC4C9C0),
+      surface: Color(0xFFF7F9FD),
+      onSurface: Color(0xFF111827),
+      surfaceContainerLow: Color(0xFFF0F3F9),
+      surfaceContainer: Color(0xFFE8EDF6),
+      surfaceContainerHigh: Color(0xFFDDE5F2),
+      outline: Color(0xFF657189),
+      outlineVariant: Color(0xFFBEC8DA),
       shadow: Colors.black,
       scrim: Colors.black,
       inverseSurface: Color(0xFF2E312D),
       onInverseSurface: Color(0xFFF0F1EC),
-      inversePrimary: HiHatColors.signal,
+      inversePrimary: Color(0xFF9CC2FF),
     ),
   );
 
@@ -162,19 +164,19 @@ abstract final class HiHatTheme {
     splashFactory: InkSparkle.splashFactory,
     textTheme: const TextTheme(
       displayLarge: TextStyle(
-        fontSize: 54,
-        fontWeight: FontWeight.w300,
-        letterSpacing: -1.6,
+        fontSize: 52,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -2.0,
       ),
       displayMedium: TextStyle(
         fontSize: 42,
-        fontWeight: FontWeight.w300,
+        fontWeight: FontWeight.w700,
         letterSpacing: -1.1,
       ),
       headlineLarge: TextStyle(
         fontSize: 32,
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.6,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.9,
       ),
       headlineMedium: TextStyle(
         fontSize: 26,
@@ -192,20 +194,20 @@ abstract final class HiHatTheme {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 68,
+      height: 72,
       backgroundColor: scheme.surfaceContainerLow,
       indicatorColor: scheme.primary.withValues(alpha: 0.18),
     ),
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: scheme.surfaceContainerLow,
       indicatorColor: scheme.primary.withValues(alpha: 0.18),
-      minWidth: 88,
-      minExtendedWidth: 184,
+      minWidth: 80,
+      minExtendedWidth: 200,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainerHigh,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(999),
         borderSide: BorderSide.none,
@@ -223,8 +225,9 @@ abstract final class HiHatTheme {
       activeTrackColor: scheme.primary,
       inactiveTrackColor: scheme.outlineVariant,
       thumbColor: scheme.primary,
-      trackHeight: 4,
-      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+      trackHeight: 6,
+      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+      overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
     ),
     cardTheme: CardThemeData(
       elevation: 0,

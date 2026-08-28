@@ -404,7 +404,7 @@ class MiniPlayer extends ConsumerWidget {
           MaterialPageRoute<void>(builder: (_) => const FullPlayerScreen()),
         ),
         child: SizedBox(
-          height: 84,
+          height: MediaQuery.sizeOf(context).width >= 760 ? 104 : 88,
           child: Stack(
             children: [
               Row(
@@ -478,7 +478,7 @@ class MiniPlayer extends ConsumerWidget {
                     onPressed: ref.read(audioEngineProvider.notifier).next,
                     icon: const Icon(Icons.skip_next_rounded),
                   ),
-                  if (MediaQuery.sizeOf(context).width >= 520) ...[
+                  if (MediaQuery.sizeOf(context).width >= 760) ...[
                     IconButton(
                       tooltip: playback.muted ? 'Unmute' : 'Mute',
                       onPressed: ref
@@ -489,12 +489,30 @@ class MiniPlayer extends ConsumerWidget {
                       ),
                     ),
                     SizedBox(
-                      width: 100,
-                      child: Slider(
-                        value: playback.volume,
-                        onChanged: ref
-                            .read(audioEngineProvider.notifier)
-                            .setVolume,
+                      width: 230,
+                      child: Semantics(
+                        label:
+                            'Volume ${(playback.volume * 100).round()} percent',
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Slider(
+                                value: playback.volume,
+                                onChanged: ref
+                                    .read(audioEngineProvider.notifier)
+                                    .setVolume,
+                              ),
+                            ),
+                            SizedBox(
+                              width: 36,
+                              child: Text(
+                                '${(playback.volume * 100).round()}',
+                                textAlign: TextAlign.right,
+                                style: Theme.of(context).textTheme.labelMedium,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],

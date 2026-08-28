@@ -85,6 +85,10 @@ void main() {
   );
 
   testWidgets('search surface exposes the primary task', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       MaterialApp(
         theme: HiHatTheme.dark,
@@ -97,6 +101,46 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('Search songs, artists, and albums'), findsOneWidget);
     expect(find.text('FLAC'), findsOneWidget);
+
+    final field = tester.getRect(find.byType(TextField));
+    final icon = tester.getRect(find.byIcon(Icons.search_rounded));
+    expect((field.center.dy - icon.center.dy).abs(), lessThan(1));
+    expect(icon.left - field.left, greaterThan(16));
+    expect(icon.right - field.left, lessThan(48));
+  });
+
+  testWidgets('desktop compact player exposes a substantial volume fader', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const track = TrackSummary(
+      id: 'local:fader',
+      provider: 'local',
+      providerTrackId: 'fader',
+      title: 'Signal Check',
+      artist: 'Hi Hat',
+      localPath: 'signal.flac',
+    );
+    final engine = TestAudioEngine(
+      const PlaybackState(track: track, volume: .72),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [audioEngineProvider.overrideWith((ref) => engine)],
+        child: MaterialApp(
+          theme: HiHatTheme.dark,
+          home: const Scaffold(body: MiniPlayer()),
+        ),
+      ),
+    );
+
+    final slider = tester.getRect(find.byType(Slider));
+    expect(slider.width, greaterThanOrEqualTo(180));
+    expect(find.text('72'), findsOneWidget);
   });
 
   testWidgets(

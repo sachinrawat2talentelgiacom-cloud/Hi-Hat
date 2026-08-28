@@ -61,9 +61,25 @@ class _AppShellState extends ConsumerState<AppShell> {
                             setState(() => selected = value),
                         leading: Padding(
                           padding: const EdgeInsets.fromLTRB(12, 22, 12, 36),
-                          child: Text(
-                            'HI HAT',
-                            style: Theme.of(context).textTheme.titleLarge,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .secondary,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'HI HAT',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ],
                           ),
                         ),
                         destinations: const [
