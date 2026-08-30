@@ -24,10 +24,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -87,6 +87,9 @@ jobs:
           & flutter build windows --release 2>&1 | Tee-Object -FilePath windows-build.log
           $buildExit = $LASTEXITCODE
           if ($buildExit -ne 0) {
+            $errorTail = (Get-Content windows-build.log -Tail 40) -join "`n"
+            $errorTail = $errorTail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Windows build failed::$errorTail"
             "## Windows build failure" >> $env:GITHUB_STEP_SUMMARY
             '```text' >> $env:GITHUB_STEP_SUMMARY
             Get-Content windows-build.log -Tail 80 >> $env:GITHUB_STEP_SUMMARY
