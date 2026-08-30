@@ -58,7 +58,10 @@ jobs:
 
   windows:
     name: Windows app
-    runs-on: windows-latest
+    # flutter_inappwebview 6.2 beta still uses Microsoft's experimental
+    # coroutine header, which Visual Studio 18 rejects. VS 2022 remains
+    # compatible with the plugin and matches the verified local toolchain.
+    runs-on: windows-2022
     env:
       # The WebView2 plugin has large C++ translation units. Serial compilation
       # stays inside the memory available on hosted Windows runners.
