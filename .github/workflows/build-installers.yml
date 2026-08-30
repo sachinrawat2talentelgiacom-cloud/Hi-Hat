@@ -1,0 +1,89 @@
+name: Build APK and Windows app
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installers-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.1
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Restore packages
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Give APK a friendly name
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Hi-Hat-Android.apk
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hi-Hat-Android-${{ github.sha }}
+          path: client/build/app/outputs/flutter-apk/Hi-Hat-Android.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    name: Windows app
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Restore packages
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release --no-enable-impeller
+
+      - name: Upload packaged Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hi-Hat-Windows-${{ github.sha }}
+          path: client/build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 30
