@@ -3,305 +3,161 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/download_service.dart';
 
-class AcquisitionDock extends ConsumerStatefulWidget {
-  const AcquisitionDock({super.key});
+class DownloadsButton extends ConsumerWidget {
+  const DownloadsButton({super.key, this.compact = false});
+
+  final bool compact;
 
   @override
-  ConsumerState<AcquisitionDock> createState() => _AcquisitionDockState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeCount = ref.watch(downloadServiceProvider).activeTransfers.length;
+    return Badge(
+      isLabelVisible: activeCount > 0,
+      label: Text('$activeCount'),
+      child: compact
+          ? IconButton(
+              tooltip: 'Downloads',
+              onPressed: () => _showDownloads(context),
+              icon: const Icon(Icons.download_rounded),
+            )
+          : OutlinedButton.icon(
+              onPressed: () => _showDownloads(context),
+              icon: Icon(activeCount > 0
+                  ? Icons.downloading_rounded
+                  : Icons.download_done_rounded),
+              label: const Text('Downloads'),
+            ),
+    );
+  }
+
+  void _showDownloads(BuildContext context) {
+    showDialog<void>(context: context, builder: (_) => const _DownloadsDialog());
+  }
 }
 
-class _AcquisitionDockState extends ConsumerState<AcquisitionDock> {
-  static const _edgePadding = 16.0;
-  static const _maximumWidth = 460.0;
-
-  final dockKey = GlobalKey();
-  Offset? position;
-  Size dockSize = Size.zero;
-  Size availableSize = Size.zero;
-
-  Offset _clamp(Offset candidate, Size bounds, Size childSize) {
-    final maxX = (bounds.width - childSize.width - _edgePadding).clamp(
-      _edgePadding,
-      double.infinity,
-    );
-    final maxY = (bounds.height - childSize.height - _edgePadding).clamp(
-      _edgePadding,
-      double.infinity,
-    );
-    return Offset(
-      candidate.dx.clamp(_edgePadding, maxX),
-      candidate.dy.clamp(_edgePadding, maxY),
-    );
-  }
-
-  Offset _resolvedPosition(Size bounds) {
-    final current = position;
-    if (current != null) return _clamp(current, bounds, dockSize);
-    return _clamp(
-      Offset(
-        bounds.width - dockSize.width - _edgePadding,
-        bounds.height - dockSize.height - _edgePadding,
-      ),
-      bounds,
-      dockSize,
-    );
-  }
-
-  void _measureAndClamp(Size bounds) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final measured = dockKey.currentContext?.size;
-      if (measured == null) return;
-      final nextPosition = _resolvedPosition(bounds);
-      if (measured == dockSize &&
-          bounds == availableSize &&
-          position == nextPosition) {
-        return;
-      }
-      setState(() {
-        dockSize = measured;
-        availableSize = bounds;
-        position = _clamp(nextPosition, bounds, measured);
-      });
-    });
-  }
+class _DownloadsDialog extends ConsumerWidget {
+  const _DownloadsDialog();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final downloads = ref.watch(downloadServiceProvider);
-    final active = downloads.activeTransfers;
-    if (active.isEmpty) return const SizedBox.shrink();
-
+    final transfers = downloads.allTransfers.reversed.toList();
     final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bounds = constraints.biggest;
-        _measureAndClamp(bounds);
-        final resolved = _resolvedPosition(bounds);
-
-        return Stack(
-          children: [
-            Positioned(
-              left: resolved.dx,
-              top: resolved.dy,
-              child: ConstrainedBox(
-                key: dockKey,
-                constraints: BoxConstraints(
-                  maxWidth: (bounds.width - (_edgePadding * 2)).clamp(
-                    0,
-                    _maximumWidth,
-                  ),
-                  maxHeight: (bounds.height - (_edgePadding * 2)).clamp(
-                    0,
-                    double.infinity,
-                  ),
-                ),
-                child: Material(
-                  elevation: 8,
-                  borderRadius: BorderRadius.circular(16),
-                  color: theme.colorScheme.surfaceContainerHigh,
-                  shadowColor: Colors.black54,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                    ),
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onPanUpdate: (details) {
-                            setState(() {
-                              position = _clamp(
-                                resolved + details.delta,
-                                bounds,
-                                dockSize,
-                              );
-                            });
-                          },
-                          child: Semantics(
-                            label: 'Drag active downloads dock',
-                            child: SizedBox(
-                              height: 48,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.drag_indicator_rounded,
-                                    size: 20,
-                                    color: theme.colorScheme.outline,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Icon(
-                                    Icons.downloading_rounded,
-                                    size: 18,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Active Downloads (${active.length})',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.labelMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 0.5,
-                                          ),
-                                    ),
-                                  ),
-                                  Text(
-                                    'Drag to move',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.outline,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Flexible(
-                          child: SingleChildScrollView(
-                            child: Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: active
-                                  .map(
-                                    (transfer) => _TransferChip(
-                                      transfer: transfer,
-                                      isFocused:
-                                          downloads.focusedTrackId ==
-                                              transfer.trackId &&
-                                          !transfer.isMinimized,
-                                      onFocus: () => ref
-                                          .read(
-                                            downloadServiceProvider.notifier,
-                                          )
-                                          .focus(transfer.trackId),
-                                      onCancel: () => ref
-                                          .read(
-                                            downloadServiceProvider.notifier,
-                                          )
-                                          .cancel(transfer.trackId),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+    return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(24, 20, 12, 12),
+      title: Row(children: [
+        const Icon(Icons.download_rounded),
+        const SizedBox(width: 10),
+        const Expanded(child: Text('Downloads')),
+        IconButton(
+          tooltip: 'Close downloads',
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ]),
+      contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      content: SizedBox(
+        width: 520,
+        child: transfers.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.download_done_rounded,
+                      size: 40, color: theme.colorScheme.outline),
+                  const SizedBox(height: 12),
+                  Text('No downloads yet', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text('Tracks you download will appear here.',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: theme.colorScheme.outline)),
+                ]),
+              )
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 520),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: transfers.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final transfer = transfers[index];
+                    return _DownloadListTile(
+                      transfer: transfer,
+                      onOpen: transfer.isActive
+                          ? () {
+                              ref.read(downloadServiceProvider.notifier)
+                                  .focus(transfer.trackId);
+                              Navigator.of(context).pop();
+                            }
+                          : null,
+                      onCancel: transfer.isActive
+                          ? () => ref.read(downloadServiceProvider.notifier)
+                              .cancel(transfer.trackId)
+                          : null,
+                    );
+                  },
                 ),
               ),
-            ),
-          ],
-        );
-      },
+      ),
     );
   }
 }
 
-class _TransferChip extends StatelessWidget {
-  const _TransferChip({
+class _DownloadListTile extends StatelessWidget {
+  const _DownloadListTile({
     required this.transfer,
-    required this.isFocused,
-    required this.onFocus,
+    required this.onOpen,
     required this.onCancel,
   });
 
   final TransferState transfer;
-  final bool isFocused;
-  final VoidCallback onFocus;
-  final VoidCallback onCancel;
+  final VoidCallback? onOpen;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final title = transfer.track?.title ?? 'Track';
     final artist = transfer.track?.artist ?? '';
-    final percent = (transfer.progress * 100).round();
-
-    return Material(
-      color: isFocused
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
-          : theme.colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onFocus,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsetsDirectional.only(start: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isFocused
-                  ? theme.colorScheme.primary.withValues(alpha: 0.6)
-                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(
-                  value: transfer.progress > 0 ? transfer.progress : null,
-                  strokeWidth: 2,
-                  color: theme.colorScheme.primary,
-                ),
+    final status = _statusLabel(transfer);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      leading: SizedBox.square(
+        dimension: 36,
+        child: transfer.isActive
+            ? CircularProgressIndicator(
+                value: transfer.progress > 0 ? transfer.progress : null,
+                strokeWidth: 3,
+              )
+            : Icon(
+                transfer.isCompleted
+                    ? Icons.check_circle_rounded
+                    : transfer.isFailed
+                        ? Icons.error_rounded
+                        : Icons.cancel_rounded,
+                color: transfer.isCompleted
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.error,
               ),
-              const SizedBox(width: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (artist.isNotEmpty)
-                      Text(
-                        artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.outline,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '$percent%',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              IconButton(
-                tooltip: 'Cancel $title download',
-                onPressed: onCancel,
-                icon: const Icon(Icons.close_rounded, size: 18),
-              ),
-            ],
-          ),
-        ),
       ),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(artist.isEmpty ? status : '$artist · $status',
+          maxLines: 1, overflow: TextOverflow.ellipsis),
+      onTap: onOpen,
+      trailing: onCancel == null
+          ? null
+          : IconButton(
+              tooltip: 'Cancel $title download',
+              onPressed: onCancel,
+              icon: const Icon(Icons.close_rounded),
+            ),
     );
+  }
+
+  String _statusLabel(TransferState transfer) {
+    if (transfer.isCompleted) return 'Completed';
+    if (transfer.isFailed) return 'Failed';
+    if (transfer.isCancelled) return 'Cancelled';
+    final phase = (transfer.phase ?? 'Preparing').replaceAll('_', ' ');
+    return '$phase · ${(transfer.progress * 100).round()}%';
   }
 }

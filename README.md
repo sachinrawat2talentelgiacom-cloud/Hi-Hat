@@ -1,6 +1,6 @@
 # Hi Hat
 
-Hi Hat is a minimal lossless music player for Android and Windows. The Windows app runs as a single Flutter application: search, embedded browser acquisition, validation, the local library, and playback do not require FastAPI or Python at runtime. Playback currently begins after a complete lossless file is downloaded, validated, and saved on the listening device.
+Hi Hat is a minimal lossless music player for Android and Windows. The Windows app runs as a single Flutter application: search, embedded browser acquisition, validation, the local library, playback, and optional DeepL lyrics translation do not require FastAPI or Python at runtime. Playback currently begins after a complete lossless file is downloaded, validated, and saved on the listening device.
 
 ## One-click Windows launch
 
@@ -61,6 +61,10 @@ puro flutter analyze
 puro flutter test
 ```
 
+## Download builds from GitHub
+
+Every push starts the **Build APK and Windows app** workflow. Open the repository's **Actions** tab, select the newest successful run, and download either `Hi-Hat-Android-…` or `Hi-Hat-Windows-…` from its **Artifacts** section. GitHub keeps these test builds for 30 days. The Android artifact contains an installable APK; the Windows artifact contains the complete application folder, so keep its DLLs and `data` folder beside `hi_hat.exe`.
+
 ## Catalog and lyrics configuration
 
 Hi Hat uses the configured Monochrome-compatible provider endpoints for song and album metadata. Optional direct TIDAL catalog access is compiled in only when application credentials are supplied at build time; no secret is stored in the repository:
@@ -70,7 +74,7 @@ puro flutter build windows --release --dart-define=TIDAL_CLIENT_ID=<id> --dart-d
 puro flutter build apk --release --dart-define=TIDAL_CLIENT_ID=<id> --dart-define=TIDAL_CLIENT_SECRET=<secret>
 ```
 
-Without these values, search automatically uses the credential-free configured provider endpoints. Lyrics are fetched from [LRCLIB](https://lrclib.net/), attributed in the player, and successful responses are cached on-device. LRCLIB requires no API key. Queue, volume, mute restoration, shuffle/repeat settings, related autoplay, and custom playlists use a versioned local preferences schema (`playback_state_v2` and `custom_playlists_v2`); the playlist loader imports the earlier `custom_playlists_v1` key when present.
+Without these values, search automatically uses the credential-free configured provider endpoints. Lyrics are fetched from [LRCLIB](https://lrclib.net/), attributed in the player, and successful responses are cached on-device. LRCLIB requires no API key. On Windows, optional English lyric translation calls DeepL directly: put a DeepL API Free key in the ignored `backend/.env` file as `HI_HAT_DEEPL_API_KEY`, and the one-click launcher passes it to the app process. The legacy Python backend does not need to run. Android and iOS translation remains on-device through Google ML Kit. Queue, volume, mute restoration, shuffle/repeat settings, related autoplay, and custom playlists use a versioned local preferences schema (`playback_state_v2` and `custom_playlists_v2`); the playlist loader imports the earlier `custom_playlists_v1` key when present.
 
 ## Safety boundary
 

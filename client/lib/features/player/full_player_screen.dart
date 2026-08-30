@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/audio_engine.dart';
 import '../../core/theme.dart';
 import '../../services/lyrics_service.dart';
+import '../../services/lyrics_translation_service.dart';
 import '../../services/track_playback_coordinator.dart';
 import '../../widgets/track_artwork.dart';
 import 'song_actions.dart';
@@ -322,69 +324,135 @@ class LyricsView extends ConsumerWidget {
     final playback = ref.watch(audioEngineProvider);
     final track = playback.track;
     if (track == null) return const SizedBox.shrink();
+    final showEnglish = ref.watch(
+      _showEnglishLyricsProvider(track.providerTrackId),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Lyrics', style: Theme.of(context).textTheme.titleLarge),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Lyrics',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('Original')),
+                ButtonSegment(value: true, label: Text('English')),
+              ],
+              selected: {showEnglish},
+              onSelectionChanged: (selection) =>
+                  ref
+                          .read(
+                            _showEnglishLyricsProvider(track.providerTrackId)
+                                .notifier,
+                          )
+                          .state =
+                      selection.first,
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
-        ref
-            .watch(lyricsProvider(track))
-            .when(
-              loading: () => const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
+        if (showEnglish)
+          ref
+              .watch(englishLyricsProvider(track))
+              .when(
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
                 ),
-              ),
-              error: (_, _) => const Text(
-                'Lyrics could not be loaded. Check your connection and try again.',
-              ),
-              data: (lyrics) {
-                if (lyrics == null) {
-                  return const Text('Lyrics are not available for this song.');
-                }
-                if (lyrics.synced.isEmpty) {
-                  return SelectableText(
-                    lyrics.plain,
-                    style: const TextStyle(height: 1.65),
-                  );
-                }
-                var active = -1;
-                for (var i = 0; i < lyrics.synced.length; i++) {
-                  if (lyrics.synced[i].time <= playback.position) active = i;
-                }
-                return Column(
-                  children: [
-                    for (var i = 0; i < lyrics.synced.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 5),
-                        child: Text(
-                          lyrics.synced[i].text,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: i == active ? 19 : 16,
-                            fontWeight: i == active
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: i == active
-                                ? Theme.of(context).colorScheme.primary
-                                : null,
+                error: (error, _) => Text(
+                  error is LyricsTranslationException
+                      ? error.message
+                      : 'The English translation could not be loaded.',
+                ),
+                data: (translation) => translation == null
+                    ? const Text('These lyrics are already in English.')
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SelectableText(
+                            translation.text,
+                            style: const TextStyle(height: 1.65),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(switch (defaultTargetPlatform) {
+                            TargetPlatform.android || TargetPlatform.iOS => 'Translated on-device with Google ML Kit. Machine translations may miss wordplay or cultural context.',
+                            _ => 'Translated online with DeepL. Machine translations may miss wordplay or cultural context.',
+                          }, style: const TextStyle(fontSize: 12)),
+                        ],
+                      ),
+              )
+        else
+          ref
+              .watch(lyricsProvider(track))
+              .when(
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+                error: (_, _) => const Text(
+                  'Lyrics could not be loaded. Check your connection and try again.',
+                ),
+                data: (lyrics) {
+                  if (lyrics == null) {
+                    return const Text(
+                      'Lyrics are not available for this song.',
+                    );
+                  }
+                  if (lyrics.synced.isEmpty) {
+                    return SelectableText(
+                      lyrics.plain,
+                      style: const TextStyle(height: 1.65),
+                    );
+                  }
+                  var active = -1;
+                  for (var i = 0; i < lyrics.synced.length; i++) {
+                    if (lyrics.synced[i].time <= playback.position) active = i;
+                  }
+                  return Column(
+                    children: [
+                      for (var i = 0; i < lyrics.synced.length; i++)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 5),
+                          child: Text(
+                            lyrics.synced[i].text,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: i == active ? 19 : 16,
+                              fontWeight: i == active
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: i == active
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
                           ),
                         ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Lyrics provided by LRCLIB',
+                        style: TextStyle(fontSize: 12),
                       ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Lyrics provided by LRCLIB',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ],
-                );
-              },
-            ),
+                    ],
+                  );
+                },
+              ),
       ],
     );
   }
 }
+
+final _showEnglishLyricsProvider = StateProvider.family<bool, String>(
+  (ref, trackId) => false,
+);
 
 Future<void> showQueue(BuildContext context) => showModalBottomSheet<void>(
   context: context,

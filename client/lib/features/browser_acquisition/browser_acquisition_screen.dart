@@ -79,6 +79,7 @@ class _BrowserAcquisitionScreenState
   late Future<void> initialization;
   InAppWebViewController? webViewController;
   CancelToken? httpCancelToken;
+  RandomAccessFile? blobOutput;
   BrowserAcquisitionLog? acquisitionLog;
 
   String get searchQuery => <String?>[
@@ -137,6 +138,9 @@ class _BrowserAcquisitionScreenState
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
     httpCancelToken?.cancel('Acquisition disposed.');
+    final output = blobOutput;
+    blobOutput = null;
+    if (output != null) unawaited(output.close());
     acquisitionLog?.close();
     super.dispose();
   }
@@ -198,7 +202,7 @@ class _BrowserAcquisitionScreenState
       final result = await controller.evaluateJavascript(
         source:
             '''
-          (() => {
+          (async () => {
             const verification = document.querySelector(
               'iframe[src*="turnstile"], input[name="cf-turnstile-response"], #challenge-form, [data-sitekey]'
             );
@@ -297,19 +301,24 @@ class _BrowserAcquisitionScreenState
               clientY: clickY,
             }));
 
-            let contextDownload = document.querySelector(
+            const findContextDownload = () => document.querySelector(
               '#context-menu li[data-action="download"], #context-menu [data-action="download"], li[data-action="download"], [data-action="download"]'
             );
+            let contextDownload = findContextDownload();
             if (!contextDownload) {
               const moreButton = row.querySelector(
                 'button[aria-label*="more" i], button[title*="more" i], .more-button, [data-action="more"], .track-more, .actions-button'
               );
               if (moreButton) {
                 moreButton.click();
-                contextDownload = document.querySelector(
-                  '#context-menu li[data-action="download"], [data-action="download"], li[data-action="download"]'
-                );
               }
+            }
+
+            // Provider menus render asynchronously. Wait briefly here instead
+            // of rescanning the entire result page on the next polling tick.
+            for (let attempt = 0; !contextDownload && attempt < 4; attempt += 1) {
+              await new Promise((resolve) => setTimeout(resolve, 50));
+              contextDownload = findContextDownload();
             }
 
             if (!contextDownload) return 'loading:context-download-not-found';
@@ -397,7 +406,7 @@ class _BrowserAcquisitionScreenState
           phase != BrowserAcquisitionPhase.failed) {
         automationTimer?.cancel();
         automationTimer = Timer(
-          const Duration(seconds: 2),
+          const Duration(milliseconds: 150),
           () => _onLoaded(controller),
         );
       }
@@ -442,7 +451,7 @@ class _BrowserAcquisitionScreenState
 
     monitor?.cancel();
     monitor = Timer.periodic(
-      const Duration(seconds: 1),
+      const Duration(milliseconds: 500),
       (_) => _scanForCompletedFile(),
     );
 
@@ -547,21 +556,20 @@ class _BrowserAcquisitionScreenState
           if (userAgent != null && userAgent.isNotEmpty)
             'User-Agent': userAgent,
         },
-        responseType: ResponseType.bytes,
       );
-      final response = await dio.get<List<int>>(
-        uri.toString(),
+      await destination.parent.create(recursive: true);
+      final response = await dio.downloadUri(
+        Uri.parse(uri.toString()),
+        destination.path,
         options: options,
         cancelToken: cancelToken,
+        deleteOnError: true,
       );
-      if (!cancelled && response.data != null) {
-        await destination.parent.create(recursive: true);
-        if (cancelled) return;
-        await destination.writeAsBytes(response.data!, flush: true);
-        if (cancelled) return;
+      if (!cancelled) {
         await acquisitionLog?.event('DOWNLOAD_SAVED_FROM_HTTP', {
           'path': destination.path,
-          'bytes': response.data!.length,
+          'bytes': await destination.length(),
+          'statusCode': response.statusCode,
         });
         monitor?.cancel();
         await _finalize(destination);
@@ -606,6 +614,54 @@ class _BrowserAcquisitionScreenState
     final incoming = File(p.join(folder.path, 'incoming.flac'));
     controlledDownloadFile = incoming;
     await _saveDataUri(base64Data, incoming);
+  }
+
+  Future<bool> _startChunkedBlobDownload(String? filename) async {
+    if (cancelled) return false;
+    downloadRequested = true;
+    automationTimer?.cancel();
+    downloadStartDeadline?.cancel();
+    setState(() {
+      phase = BrowserAcquisitionPhase.downloading;
+      detail = filename ?? expectedFilename;
+    });
+    ref
+        .read(downloadServiceProvider.notifier)
+        .update(widget.track.id, 'DOWNLOADING', progress: 0.88);
+    final root = await getApplicationSupportDirectory();
+    if (cancelled) return false;
+    final folder = Directory(
+      p.join(root.path, 'Acquisitions', widget.track.providerTrackId),
+    );
+    await folder.create(recursive: true);
+    final incoming = File(p.join(folder.path, 'incoming.flac'));
+    if (await incoming.exists()) await incoming.delete();
+    controlledDownloadFile = incoming;
+    final previous = blobOutput;
+    if (previous != null) await previous.close();
+    blobOutput = await incoming.open(mode: FileMode.write);
+    return true;
+  }
+
+  Future<bool> _appendChunkedBlob(String encodedChunk) async {
+    if (cancelled) return false;
+    final output = blobOutput;
+    if (output == null) return false;
+    await output.writeFrom(base64Decode(encodedChunk));
+    return true;
+  }
+
+  Future<bool> _finishChunkedBlobDownload() async {
+    final output = blobOutput;
+    blobOutput = null;
+    if (output == null) return false;
+    await output.flush();
+    await output.close();
+    if (cancelled) return false;
+    final incoming = controlledDownloadFile;
+    if (incoming == null) return false;
+    await _finalize(incoming);
+    return true;
   }
 
   Future<void> _scanForCompletedFile() async {
@@ -679,7 +735,7 @@ class _BrowserAcquisitionScreenState
       if (expectedLength != null && size != expectedLength) return;
       stableReads = size == previousSize ? stableReads + 1 : 0;
       previousSize = size;
-      if (size <= 1024 || stableReads < 2) return;
+      if (size <= 1024 || stableReads < 1) return;
       monitor?.cancel();
       await _finalize(file);
     } finally {
@@ -706,7 +762,6 @@ class _BrowserAcquisitionScreenState
       ref
           .read(downloadServiceProvider.notifier)
           .update(widget.track.id, 'FINALIZING', progress: 0.98);
-      await Future<void>.delayed(const Duration(milliseconds: 250));
       if (!mounted || cancelled) return;
       setState(() => phase = BrowserAcquisitionPhase.ready);
       ref.read(downloadServiceProvider.notifier).complete(widget.track.id);
@@ -714,7 +769,6 @@ class _BrowserAcquisitionScreenState
         'localPath': local.localPath,
       });
       completedTrack = local;
-      await Future<void>.delayed(const Duration(milliseconds: 350));
       if (!mounted || cancelled) return;
       _finish(local);
     } catch (error) {
@@ -746,6 +800,15 @@ class _BrowserAcquisitionScreenState
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
     httpCancelToken?.cancel('Cancelled by the user.');
+    final output = blobOutput;
+    blobOutput = null;
+    if (output != null) {
+      try {
+        await output.close();
+      } catch (_) {
+        // The stream may already have closed after its final chunk.
+      }
+    }
     final controller = webViewController;
     webViewController = null;
     try {
@@ -820,19 +883,20 @@ class _BrowserAcquisitionScreenState
     onWebViewCreated: (controller) {
       webViewController = controller;
       controller.addJavaScriptHandler(
-        handlerName: 'onBlobDownload',
+        handlerName: 'onBlobDownloadStart',
         callback: (args) async {
-          if (cancelled || args.isEmpty) return null;
-          final base64Data = args[0] as String;
-          final filename = args.length > 1 ? args[1] as String? : null;
-          final mimeType = args.length > 2 ? args[2] as String? : null;
-          await _handleDownloadedBytesFromBase64(
-            base64Data,
-            filename: filename,
-            mimeType: mimeType,
-          );
-          return true;
+          final filename = args.isNotEmpty ? args[0] as String? : null;
+          return _startChunkedBlobDownload(filename);
         },
+      );
+      controller.addJavaScriptHandler(
+        handlerName: 'onBlobDownloadChunk',
+        callback: (args) =>
+            args.isEmpty ? false : _appendChunkedBlob(args.first as String),
+      );
+      controller.addJavaScriptHandler(
+        handlerName: 'onBlobDownloadEnd',
+        callback: (_) => _finishChunkedBlobDownload(),
       );
       acquisitionLog?.event('WEBVIEW_CREATED', {'url': trackUrl});
     },
@@ -853,16 +917,35 @@ class _BrowserAcquisitionScreenState
             try {
               const response = await fetch(url);
               const blob = await response.blob();
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const base64data = reader.result;
-                if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-                  window.flutter_inappwebview.callHandler('onBlobDownload', base64data, filename, blob.type);
-                }
-              };
-              reader.readAsDataURL(blob);
+              const bridge = window.flutter_inappwebview;
+              if (!bridge || !bridge.callHandler) return false;
+              const started = await bridge.callHandler('onBlobDownloadStart', filename);
+              if (!started) return false;
+              // Keep bridge messages bounded, but make them large enough to
+              // avoid hundreds of expensive WebView-to-Dart round trips.
+              const chunkSize = 1024 * 1024;
+              for (let offset = 0; offset < blob.size; offset += chunkSize) {
+                const encoded = await new Promise((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const result = String(reader.result || '');
+                    const comma = result.indexOf(',');
+                    resolve(comma >= 0 ? result.slice(comma + 1) : result);
+                  };
+                  reader.onerror = () => reject(reader.error);
+                  reader.readAsDataURL(blob.slice(offset, offset + chunkSize));
+                });
+                const accepted = await bridge.callHandler(
+                  'onBlobDownloadChunk',
+                  encoded
+                );
+                if (!accepted) return false;
+              }
+              await bridge.callHandler('onBlobDownloadEnd');
+              return true;
             } catch (e) {
               console.error('HiHat blob intercept error:', e);
+              return false;
             }
           }
 
@@ -871,12 +954,9 @@ class _BrowserAcquisitionScreenState
             const href = this.href || this.getAttribute('href') || '';
             const download = this.getAttribute('download') || this.download;
             if (download || href.startsWith('blob:') || href.startsWith('data:')) {
-              if (href.startsWith('blob:')) {
+              if (href.startsWith('blob:') || href.startsWith('data:')) {
                 handleBlobUrl(href, download || 'download.flac');
-              } else if (href.startsWith('data:')) {
-                if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-                  window.flutter_inappwebview.callHandler('onBlobDownload', href, download || 'download.flac', 'audio/flac');
-                }
+                return;
               }
             }
             return originalClick.apply(this, arguments);
@@ -886,12 +966,15 @@ class _BrowserAcquisitionScreenState
       );
       await _onLoaded(controller);
     },
-    onProgressChanged: (_, progress) {
+    onProgressChanged: (controller, progress) {
       if (progress == 25 ||
           progress == 50 ||
           progress == 75 ||
           progress == 100) {
         acquisitionLog?.event('PAGE_PROGRESS', {'percent': progress});
+      }
+      if (progress >= 35 && !downloadRequested && !automationRunning) {
+        unawaited(_onLoaded(controller));
       }
     },
     onConsoleMessage: (_, message) => _onProviderConsole(message),

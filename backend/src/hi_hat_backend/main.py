@@ -4,8 +4,9 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
+from pydantic import BaseModel, Field
 
 from hi_hat_backend.config import Settings, get_settings
 from hi_hat_backend.downloads import DownloadManager
@@ -14,6 +15,17 @@ from hi_hat_backend.providers.errors import ProviderError
 from hi_hat_backend.providers.manager import ProviderManager
 from hi_hat_backend.providers.monochrome import MonochromeProvider
 from hi_hat_backend.providers.personal_library import PersonalLibraryProvider
+
+
+class TranslationRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=100_000)
+    target_language: str = "EN-US"
+
+
+class TranslationResponse(BaseModel):
+    text: str
+    source_language: str
+    provider: str = "DeepL"
 
 
 class Services:
@@ -78,6 +90,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
         capabilities["manual_import"] = True
         return capabilities
+
+    @app.post("/v1/translate", response_model=TranslationResponse)
+    async def translate(payload: TranslationRequest, request: Request) -> TranslationResponse:
+        if request.client is None or request.client.host not in {"127.0.0.1", "::1"}:
+            raise HTTPException(status_code=403, detail="Translation is available only to the local app")
+        api_key = resolved_settings.deepl_api_key
+        if not api_key:
+            raise HTTPException(status_code=503, detail="Desktop translation is not configured")
+        try:
+            upstream = await services.http.post(
+                f"{resolved_settings.deepl_api_base_url.rstrip('/')}/v2/translate",
+                headers={
+                    "Authorization": f"DeepL-Auth-Key {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "text": [payload.text],
+                    "target_lang": payload.target_language,
+                    "preserve_formatting": True,
+                },
+                timeout=30,
+            )
+            upstream.raise_for_status()
+            translations = upstream.json().get("translations", [])
+            if not translations:
+                raise ValueError("DeepL returned no translation")
+            result = translations[0]
+            return TranslationResponse(
+                text=str(result["text"]),
+                source_language=str(
+                    result.get("detected_source_language", "unknown")
+                ).lower(),
+            )
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=502, detail="The translation provider is unavailable") from exc
 
     @app.post("/v1/providers/browser/show-auth", dependencies=[protected])
     async def show_browser_auth() -> dict[str, str]:

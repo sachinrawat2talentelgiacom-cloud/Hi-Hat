@@ -4,7 +4,18 @@ param()
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $clientRoot = Join-Path $projectRoot 'client'
+$localConfig = Join-Path $projectRoot 'backend\.env'
 $flutter = Join-Path $env:USERPROFILE '.puro\envs\hi_hat\flutter\bin\flutter.bat'
+
+# Desktop lyrics translation calls DeepL directly. Keep the credential in the
+# ignored local config and pass it only to the child app process.
+if (Test-Path -LiteralPath $localConfig) {
+    foreach ($line in Get-Content -LiteralPath $localConfig) {
+        if ($line -match '^HI_HAT_DEEPL_API_KEY=(.+)$') {
+            $env:HI_HAT_DEEPL_API_KEY = $Matches[1].Trim()
+        }
+    }
+}
 
 if (-not (Test-Path -LiteralPath $flutter)) {
     $flutterCommand = Get-Command flutter.bat -ErrorAction SilentlyContinue
@@ -32,5 +43,7 @@ if (-not (Get-Command nuget.exe -ErrorAction SilentlyContinue)) {
 Write-Host 'Starting Hi Hat' -ForegroundColor Green
 & $flutter pub get
 if ($LASTEXITCODE -ne 0) { throw 'Flutter dependency setup failed.' }
-& $flutter run -d windows
+# Impeller's Windows OpenGL backend intermittently faults inside
+# flutter_windows.dll on this machine. Skia avoids that native startup crash.
+& $flutter run -d windows --no-enable-impeller
 if ($LASTEXITCODE -ne 0) { throw "Flutter exited with code $LASTEXITCODE." }

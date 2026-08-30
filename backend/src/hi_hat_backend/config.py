@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     monochrome_browser_timeout_seconds: int = 1800
     monochrome_browser_acquisition_root: Path = Path.home() / "AppData/Local/HiHat/Acquisitions"
     personal_library_roots: list[Path] = Field(default_factory=list)
+    deepl_api_key: str | None = None
+    deepl_api_base_url: str = "https://api-free.deepl.com"
 
 
 @lru_cache

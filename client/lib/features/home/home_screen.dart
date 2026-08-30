@@ -214,10 +214,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ],
                       ),
                     ),
-                    IconButton.filledTonal(
+                    IconButton.filled(
                       tooltip: 'Edit discovery preferences',
                       onPressed: () => _showArtistPicker(firstRun: false),
-                      icon: const Icon(Icons.tune_rounded),
+                      style: IconButton.styleFrom(
+                        backgroundColor: HiHatColors.signal,
+                        foregroundColor: HiHatColors.onSignal,
+                      ),
+                      icon: const Icon(Icons.edit_rounded),
                     ),
                   ],
                 ),

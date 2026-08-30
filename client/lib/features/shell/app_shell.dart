@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
-import '../../services/download_service.dart';
 import '../../widgets/brand_widgets.dart';
 import '../browser_acquisition/acquisition_dock.dart';
 import '../home/home_screen.dart';
@@ -40,8 +39,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     final width = MediaQuery.sizeOf(context).width;
     final expanded = width >= 980;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final transfers = ref.watch(downloadServiceProvider).activeTransfers;
-
     return Scaffold(
       body: SafeArea(
         child: Stack(
@@ -58,7 +55,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                       children: [
                         _CommandHeader(
                           title: destinations[selected].label,
-                          transferCount: transfers.length,
                           onOpenSetup: () => setState(() => selected = 3),
                         ),
                         Expanded(
@@ -98,7 +94,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                 children: [
                   _CommandHeader(
                     title: destinations[selected].label,
-                    transferCount: transfers.length,
                     onOpenSetup: () => setState(() => selected = 3),
                     compact: true,
                   ),
@@ -129,7 +124,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                 ],
               ),
-            const AcquisitionDock(),
           ],
         ),
       ),
@@ -203,13 +197,11 @@ class _IdentityRail extends StatelessWidget {
 class _CommandHeader extends StatelessWidget {
   const _CommandHeader({
     required this.title,
-    required this.transferCount,
     required this.onOpenSetup,
     this.compact = false,
   });
 
   final String title;
-  final int transferCount;
   final VoidCallback onOpenSetup;
   final bool compact;
 
@@ -238,17 +230,8 @@ class _CommandHeader extends StatelessWidget {
           ],
         ),
         const Spacer(),
-        if (!compact)
-          HiHatStatusChip(
-            label: transferCount > 0
-                ? '$transferCount transfer${transferCount == 1 ? '' : 's'}'
-                : 'Local ready',
-            icon: transferCount > 0
-                ? Icons.downloading_rounded
-                : Icons.offline_pin_outlined,
-            live: transferCount > 0,
-          ),
-        if (!compact) const SizedBox(width: 10),
+        DownloadsButton(compact: compact),
+        const SizedBox(width: 8),
         IconButton(
           tooltip: 'Setup and preferences',
           onPressed: onOpenSetup,
