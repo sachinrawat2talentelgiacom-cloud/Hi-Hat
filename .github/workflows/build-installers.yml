@@ -59,6 +59,10 @@ jobs:
   windows:
     name: Windows app
     runs-on: windows-latest
+    env:
+      # The WebView2 plugin has large C++ translation units. Serial compilation
+      # stays inside the memory available on hosted Windows runners.
+      CMAKE_BUILD_PARALLEL_LEVEL: 1
     defaults:
       run:
         working-directory: client
@@ -78,7 +82,26 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows release
-        run: flutter build windows --release
+        shell: pwsh
+        run: |
+          & flutter build windows --release 2>&1 | Tee-Object -FilePath windows-build.log
+          $buildExit = $LASTEXITCODE
+          if ($buildExit -ne 0) {
+            "## Windows build failure" >> $env:GITHUB_STEP_SUMMARY
+            '```text' >> $env:GITHUB_STEP_SUMMARY
+            Get-Content windows-build.log -Tail 80 >> $env:GITHUB_STEP_SUMMARY
+            '```' >> $env:GITHUB_STEP_SUMMARY
+            exit $buildExit
+          }
+
+      - name: Upload Windows build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-build-log-${{ github.sha }}
+          path: client/windows-build.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload packaged Windows app
         uses: actions/upload-artifact@v4
