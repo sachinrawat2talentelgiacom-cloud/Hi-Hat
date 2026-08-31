@@ -376,6 +376,7 @@ class ProviderSearchService {
       trackNumber: (item['trackNumber'] as num?)?.toInt(),
       discNumber: (item['volumeNumber'] as num? ?? item['discNumber'] as num?)
           ?.toInt(),
+      genre: item['genre']?.toString(),
       bpm: (item['bpm'] as num?)?.round(),
       key: key,
       isrc: item['isrc']?.toString(),

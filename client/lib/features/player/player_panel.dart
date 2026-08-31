@@ -248,7 +248,7 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                 const Divider(),
                 const SizedBox(height: 18),
                 _Reading(
-                  label: current.isLocal ? 'SOURCE' : 'LISTED QUALITY',
+                  label: 'SOURCE',
                   value: current.quality.display,
                   icon: current.isLocal
                       ? Icons.verified_outlined
@@ -264,94 +264,16 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                 ),
                 const SizedBox(height: 12),
                 _Reading(
-                  label: 'OUTPUT',
-                  value: playback.outputLabel,
-                  icon: Icons.speaker_outlined,
+                  label: 'LOCAL ARCHIVE',
+                  value: current.isLocal
+                      ? [
+                          if (current.formattedFileSize != null)
+                            current.formattedFileSize!,
+                          'FLAC lossless',
+                        ].join('  ·  ')
+                      : 'Not archived on this device yet',
+                  icon: Icons.inventory_2_outlined,
                 ),
-                if (current.quality.channelsDisplay != null ||
-                    current.quality.bitrateDisplay != null) ...[
-                  const SizedBox(height: 12),
-                  _Reading(
-                    label: 'AUDIO STREAM',
-                    value: [
-                      current.quality.codec ?? 'FLAC',
-                      if (current.quality.channelsDisplay != null)
-                        current.quality.channelsDisplay!,
-                      if (current.quality.bitrateDisplay != null)
-                        current.quality.bitrateDisplay!,
-                    ].join(' · '),
-                    icon: Icons.graphic_eq_outlined,
-                  ),
-                ],
-                if (current.musicalKeyDisplay != null ||
-                    current.tempoDisplay != null) ...[
-                  const SizedBox(height: 12),
-                  _Reading(
-                    label: 'ACOUSTIC PROPERTIES',
-                    value: [
-                      if (current.musicalKeyDisplay != null)
-                        'Key: ${current.musicalKeyDisplay}',
-                      if (current.tempoDisplay != null)
-                        'Tempo: ${current.tempoDisplay}',
-                    ].join('  ·  '),
-                    icon: Icons.music_note_outlined,
-                  ),
-                ],
-                if (current.replayGain != null || current.peak != null) ...[
-                  const SizedBox(height: 12),
-                  _Reading(
-                    label: 'LEVELS & GAIN',
-                    value: [
-                      if (current.replayGain != null)
-                        'Gain: ${current.replayGain! > 0 ? '+' : ''}${current.replayGain!.toStringAsFixed(1)} dB',
-                      if (current.peak != null)
-                        'Peak: ${(current.peak! * 100).toStringAsFixed(1)}%',
-                    ].join('  ·  '),
-                    icon: Icons.tune_outlined,
-                  ),
-                ],
-                if (current.formattedTrackNumber != null ||
-                    current.genre != null) ...[
-                  const SizedBox(height: 12),
-                  _Reading(
-                    label: 'CATALOG INFO',
-                    value: [
-                      if (current.formattedTrackNumber != null)
-                        current.formattedTrackNumber!,
-                      if (current.genre != null && current.genre!.isNotEmpty)
-                        current.genre!,
-                    ].join('  ·  '),
-                    icon: Icons.tag_outlined,
-                  ),
-                ],
-                if (current.isrc != null && current.isrc!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _Reading(
-                    label: 'ISRC IDENTIFIER',
-                    value: current.isrc!,
-                    icon: Icons.fingerprint_outlined,
-                  ),
-                ],
-                if (current.copyright != null &&
-                    current.copyright!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _Reading(
-                    label: 'COPYRIGHT / RELEASE',
-                    value: current.copyright!,
-                    icon: Icons.copyright_outlined,
-                  ),
-                ],
-                if (current.isLocal && current.formattedFileSize != null) ...[
-                  const SizedBox(height: 12),
-                  _Reading(
-                    label: 'LOCAL ARCHIVE',
-                    value: [
-                      current.formattedFileSize!,
-                      'FLAC lossless',
-                    ].join('  ·  '),
-                    icon: Icons.inventory_2_outlined,
-                  ),
-                ],
                 if (transfer != null && _isActivePhase(transfer.phase)) ...[
                   const SizedBox(height: 22),
                   LinearProgressIndicator(

@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/track.dart';
+import 'discovery_service.dart';
 import 'provider_search_service.dart';
 
 enum PlaybackRepeatMode { off, queue, one }
@@ -170,6 +171,11 @@ class AudioEngine extends StateNotifier<PlaybackState> {
   }
 
   Future<void> playLocal(TrackSummary track) async {
+    if (state.relatedAutoplay) {
+      state = state.copyWith(queue: [track], currentIndex: -1, history: []);
+      await playAt(0);
+      return;
+    }
     var index = state.queue.indexWhere((item) => identical(item, track));
     if (index < 0) {
       final queue = [...state.queue, track];
@@ -357,33 +363,34 @@ class AudioEngine extends StateNotifier<PlaybackState> {
     if (v) unawaited(_extendRelated());
   }
 
-  Future<void> _extendRelated() async {
+  Future<void> refreshRelatedQueue() => _extendRelated(forceRebuild: true);
+
+  Future<void> _extendRelated({bool forceRebuild = false}) async {
     if (!state.relatedAutoplay ||
         _extending ||
-        (_relatedRetryAfter?.isAfter(DateTime.now()) ?? false) ||
+        (!forceRebuild &&
+            (_relatedRetryAfter?.isAfter(DateTime.now()) ?? false)) ||
         state.track == null ||
-        state.queue.length - state.currentIndex > relatedThreshold) {
+        (!forceRebuild &&
+            state.queue.length - state.currentIndex > relatedThreshold)) {
       return;
     }
     _extending = true;
     try {
       final current = state.track!;
-      final results = await _search.search(
-        current.genre?.isNotEmpty == true
-            ? '${current.artist} ${current.genre}'
-            : current.artist,
-        limit: 20,
-      );
+      if (forceRebuild) {
+        state = state.copyWith(queue: [current], currentIndex: 0, history: []);
+      }
+      final results = await _findRelated(current);
+      if (state.track?.providerTrackId != current.providerTrackId) return;
       final ids = state.queue.map((t) => t.providerTrackId).toSet();
-      final candidates =
-          results
-              .where(
-                (t) =>
-                    !ids.contains(t.providerTrackId) &&
-                    t.providerTrackId != current.providerTrackId,
-              )
-              .toList()
-            ..shuffle(_random);
+      final candidates = results
+          .where(
+            (track) =>
+                !ids.contains(track.providerTrackId) &&
+                track.providerTrackId != current.providerTrackId,
+          )
+          .toList(growable: false);
       if (candidates.isNotEmpty) {
         final all = [...state.queue, ...candidates.take(8)];
         final removed = max(0, all.length - maxQueue);
@@ -404,6 +411,106 @@ class AudioEngine extends StateNotifier<PlaybackState> {
       _extending = false;
     }
   }
+
+  Future<List<TrackSummary>> _findRelated(TrackSummary current) async {
+    final artistResults = await _search.search(current.artist, limit: 50);
+    final sameArtist = artistResults
+        .where(
+          (track) =>
+              DiscoveryService.artistMatches(track.artist, current.artist),
+        )
+        .toList(growable: false);
+    final genres = <String>{
+      ..._genreTokens(current.genre),
+      ...?DiscoveryService.artistGenreSeeds[_normalize(current.artist)],
+      for (final track in sameArtist) ..._genreTokens(track.genre),
+    };
+    final relatedArtists = <String>{};
+    for (final track in sameArtist) {
+      for (final artist in _creditedArtists(track.artist)) {
+        if (!DiscoveryService.artistMatches(artist, current.artist)) {
+          relatedArtists.add(artist);
+        }
+      }
+    }
+
+    final scored = <String, ({TrackSummary track, int score})>{};
+    void consider(TrackSummary track, int score) {
+      final identity = _trackIdentity(track);
+      if (identity == _trackIdentity(current) || score <= 0) return;
+      final existing = scored[identity];
+      if (existing == null || score > existing.score) {
+        scored[identity] = (track: track, score: score);
+      }
+    }
+
+    for (final track in sameArtist) {
+      final sameAlbum =
+          _normalize(track.album ?? '').isNotEmpty &&
+          _normalize(track.album ?? '') == _normalize(current.album ?? '');
+      consider(track, 120 + (sameAlbum ? 20 : 0));
+    }
+
+    for (final artist in relatedArtists.take(2)) {
+      final results = await _safeRelatedSearch(artist);
+      for (final track in results.where(
+        (track) => DiscoveryService.artistMatches(track.artist, artist),
+      )) {
+        consider(track, 80);
+      }
+    }
+
+    for (final genre in genres.take(3)) {
+      final results = await _safeRelatedSearch(genre);
+      for (final track in results) {
+        if (_sharesGenre(_genreTokens(track.genre), genres)) {
+          consider(track, 60);
+        }
+      }
+    }
+
+    final ranked = scored.values.toList()
+      ..sort((a, b) {
+        final scoreOrder = b.score.compareTo(a.score);
+        if (scoreOrder != 0) return scoreOrder;
+        return a.track.displayTitle.compareTo(b.track.displayTitle);
+      });
+    return ranked.map((entry) => entry.track).take(24).toList(growable: false);
+  }
+
+  Future<List<TrackSummary>> _safeRelatedSearch(String query) async {
+    try {
+      return await _search.search(query, limit: 40);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static Set<String> _genreTokens(String? value) => (value ?? '')
+      .split(RegExp(r'[,;/]'))
+      .map(_normalize)
+      .where((genre) => genre.isNotEmpty)
+      .toSet();
+
+  static bool _sharesGenre(Set<String> candidate, Set<String> seeds) =>
+      candidate.any(
+        (genre) => seeds.any(
+          (seed) =>
+              genre == seed || genre.contains(seed) || seed.contains(genre),
+        ),
+      );
+
+  static List<String> _creditedArtists(String value) => value
+      .split(RegExp(r'\s+(?:feat\.?|featuring|with|x)\s+|\s*[,;&]\s*'))
+      .map((artist) => artist.trim())
+      .where((artist) => artist.isNotEmpty)
+      .toList(growable: false);
+
+  static String _trackIdentity(TrackSummary track) =>
+      '${_normalize(track.title)}|${_normalize(_creditedArtists(track.artist).firstOrNull ?? track.artist)}';
+
+  static String _normalize(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
   void showTrack(TrackSummary track) => state = state.copyWith(track: track);
   Future<void> toggle() => _player.playOrPause();

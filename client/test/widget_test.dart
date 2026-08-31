@@ -8,6 +8,8 @@ import 'package:hi_hat/features/player/full_player_screen.dart';
 import 'package:hi_hat/features/search/search_screen.dart';
 import 'package:hi_hat/models/track.dart';
 import 'package:hi_hat/services/audio_engine.dart';
+import 'package:hi_hat/services/lyrics_service.dart';
+import 'package:hi_hat/services/lyrics_translation_service.dart';
 import 'package:hi_hat/widgets/track_artwork.dart';
 import 'package:hi_hat/widgets/brand_widgets.dart';
 
@@ -80,7 +82,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(FullPlayerScreen), findsOneWidget);
-      expect(find.text('Now playing'), findsOneWidget);
+      expect(find.text('Now Playing'), findsOneWidget);
       expect(find.byType(TrackArtwork), findsWidgets);
       expect(
         find.descendant(
@@ -92,6 +94,128 @@ void main() {
       expect(engine.state.playing, isTrue);
     },
   );
+
+  testWidgets('full-screen player lays out the immersive desktop stage', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const track = TrackSummary(
+      id: 'local:desktop-player',
+      provider: 'local',
+      providerTrackId: 'desktop-player',
+      title: 'Desktop Listening Session',
+      artist: 'Hi Hat Artist',
+      localPath: 'desktop-player.flac',
+    );
+    final engine = TestAudioEngine(
+      const PlaybackState(
+        track: track,
+        playing: true,
+        position: Duration(minutes: 2, seconds: 14),
+        duration: Duration(minutes: 3, seconds: 40),
+        queue: [track],
+        currentIndex: 0,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          audioEngineProvider.overrideWith((ref) => engine),
+          lyricsProvider.overrideWith(
+            (ref, track) async => const LyricsResult(
+              plain: 'Before\nCurrent lyric\nNext lyric\nLater lyric',
+              synced: [
+                LyricLine(Duration(minutes: 1, seconds: 40), 'Before'),
+                LyricLine(Duration(minutes: 1, seconds: 50), 'Current lyric'),
+                LyricLine(Duration(minutes: 2), 'Next lyric'),
+                LyricLine(Duration(minutes: 2, seconds: 10), 'Later lyric'),
+                LyricLine(Duration(minutes: 2, seconds: 20), 'Blurred lyric'),
+              ],
+            ),
+          ),
+          englishLyricsProvider.overrideWith(
+            (ref, track) async => const TranslatedLyrics(
+              text: 'English one\nEnglish two\nEnglish three\nEnglish active line\nEnglish blurred line',
+              sourceLanguage: 'ja',
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: HiHatTheme.dark,
+          home: const FullPlayerScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Now Playing'), findsOneWidget);
+    expect(find.text('Desktop Listening Session'), findsOneWidget);
+    expect(find.text('By Hi Hat Artist'), findsOneWidget);
+    expect(find.text('2:14  /  3:40'), findsOneWidget);
+    expect(find.byType(LyricsView), findsOneWidget);
+    expect(find.byType(ShaderMask), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(LyricsView),
+        matching: find.byType(Scrollbar),
+      ),
+      findsNothing,
+    );
+    expect(find.text('Current lyric'), findsOneWidget);
+    expect(find.byType(ImageFiltered), findsAtLeastNWidgets(5));
+    expect(tester.widget<Text>(find.text('Current lyric')).style?.fontSize, 40);
+    expect(
+      tester.widget<Text>(find.text('Before')).style?.color?.a,
+      closeTo(.26, .01),
+    );
+    expect(
+      tester.widget<Text>(find.text('Later lyric')).style?.fontWeight,
+      FontWeight.w700,
+    );
+    expect(find.text('Autoplay related'), findsNothing);
+    expect(find.text('Add to playlist'), findsNothing);
+    final artwork = tester.getRect(
+      find.byKey(const ValueKey('full-player-artwork')),
+    );
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('full-player-artwork')),
+        matching: find.byType(SingleChildScrollView),
+      ),
+      findsNothing,
+    );
+    expect(artwork.left, closeTo(171, 2));
+    expect(artwork.top, closeTo(126, 2));
+    expect(artwork.width, closeTo(460.8, 2));
+    final controlDeck = tester.getRect(
+      find.byKey(const ValueKey('full-player-control-deck')),
+    );
+    expect(controlDeck.left, 24);
+    expect(controlDeck.right, 1416);
+    expect(controlDeck.bottom, 875);
+    await tester.tap(find.text('English'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('English active line'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('English active line')).style?.fontSize,
+      40,
+    );
+    expect(
+      tester.widget<Text>(find.text('English active line')).style?.fontWeight,
+      FontWeight.w700,
+    );
+    expect(
+      tester.widget<Text>(find.text('English one')).style?.color?.a,
+      closeTo(.26, .01),
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('search surface exposes the primary task', (tester) async {
     tester.view.physicalSize = const Size(600, 800);
@@ -217,68 +341,77 @@ void main() {
     },
   );
 
-  testWidgets(
-    'PlayerPanel displays large artwork, acoustic readings and catalog metadata',
-    (tester) async {
-      const track = TrackSummary(
-        id: 'local:abc',
-        provider: 'local',
-        providerTrackId: 'abc',
-        title: 'Harder Better Faster Stronger',
-        artist: 'Daft Punk',
-        album: 'Discovery',
-        year: '2001',
-        durationSeconds: 224,
-        bpm: 123,
-        key: 'F# Minor',
-        trackNumber: 4,
-        isrc: 'GBDUW0000055',
-        copyright: '℗ 2001 Daft Life Limited',
-        replayGain: -6.8,
-        peak: 0.98,
-        localPath: r'C:\Music\Daft Punk\Discovery\04. Harder Better Faster Stronger.flac',
-        fileSize: 34500000,
-        quality: AudioQuality(
-          codec: 'FLAC',
-          lossless: true,
-          bitDepth: 24,
-          sampleRate: 96000,
-          channels: 2,
-          bitrate: 2450000,
-        ),
-      );
+  testWidgets('PlayerPanel displays only essential local-file metadata', (
+    tester,
+  ) async {
+    const track = TrackSummary(
+      id: 'local:abc',
+      provider: 'local',
+      providerTrackId: 'abc',
+      title: 'Harder Better Faster Stronger',
+      artist: 'Daft Punk',
+      album: 'Discovery',
+      year: '2001',
+      durationSeconds: 224,
+      bpm: 123,
+      key: 'F# Minor',
+      trackNumber: 4,
+      isrc: 'GBDUW0000055',
+      copyright: '℗ 2001 Daft Life Limited',
+      replayGain: -6.8,
+      peak: 0.98,
+      localPath: r'C:\Music\Daft Punk\Discovery\04. Harder Better Faster Stronger.flac',
+      fileSize: 34500000,
+      quality: AudioQuality(
+        codec: 'FLAC',
+        lossless: true,
+        bitDepth: 24,
+        sampleRate: 96000,
+        channels: 2,
+        bitrate: 2450000,
+      ),
+    );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: HiHatTheme.dark,
-          home: ProviderScope(
-            overrides: [
-              audioEngineProvider.overrideWith(
-                (ref) => TestAudioEngine(
-                  const PlaybackState(
-                    track: track,
-                    position: Duration(seconds: 45),
-                    duration: Duration(seconds: 224),
-                    outputLabel: 'System default',
-                  ),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: HiHatTheme.dark,
+        home: ProviderScope(
+          overrides: [
+            audioEngineProvider.overrideWith(
+              (ref) => TestAudioEngine(
+                const PlaybackState(
+                  track: track,
+                  position: Duration(seconds: 45),
+                  duration: Duration(seconds: 224),
+                  outputLabel: 'System default',
                 ),
               ),
-            ],
-            child: const Scaffold(body: PlayerPanel(track: track)),
-          ),
+            ),
+          ],
+          child: const Scaffold(body: PlayerPanel(track: track)),
         ),
-      );
-      await tester.pump();
+      ),
+    );
+    await tester.pump();
 
-      expect(find.text('Harder Better Faster Stronger'), findsOneWidget);
-      expect(find.text('Daft Punk'), findsOneWidget);
-      expect(find.text('Discovery (2001)'), findsOneWidget);
-      expect(find.text('FLAC · 24-bit · 96 kHz'), findsOneWidget);
-      expect(find.text('Key: F# Minor  ·  Tempo: 123 BPM'), findsOneWidget);
-      expect(find.text('Track 4'), findsOneWidget);
-      expect(find.text('GBDUW0000055'), findsOneWidget);
-      expect(find.text('℗ 2001 Daft Life Limited'), findsOneWidget);
-      expect(find.byType(TrackArtwork), findsOneWidget);
-    },
-  );
+    expect(find.text('Harder Better Faster Stronger'), findsOneWidget);
+    expect(find.text('Daft Punk'), findsOneWidget);
+    expect(find.text('Discovery (2001)'), findsOneWidget);
+    expect(find.text('SOURCE'), findsOneWidget);
+    expect(find.text('FLAC · 24-bit · 96 kHz'), findsOneWidget);
+    expect(find.text('OWNED FILE'), findsNWidgets(2));
+    expect(
+      find.text(
+        r'C:\Music\Daft Punk\Discovery\04. Harder Better Faster Stronger.flac',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('LOCAL ARCHIVE'), findsOneWidget);
+    expect(find.text('32.9 MB  ·  FLAC lossless'), findsOneWidget);
+    expect(find.text('ACOUSTIC PROPERTIES'), findsNothing);
+    expect(find.text('CATALOG INFO'), findsNothing);
+    expect(find.text('ISRC IDENTIFIER'), findsNothing);
+    expect(find.text('COPYRIGHT / RELEASE'), findsNothing);
+    expect(find.byType(TrackArtwork), findsOneWidget);
+  });
 }

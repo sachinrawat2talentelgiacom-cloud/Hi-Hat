@@ -56,7 +56,7 @@ class HiHatEyebrow extends StatelessWidget {
     label.toUpperCase(),
     style: Theme.of(context).textTheme.labelSmall?.copyWith(
       fontFamily: 'Poppins',
-      color: color ?? HiHatColors.brandOrange,
+      color: color ?? HiHatColors.signal,
       fontWeight: FontWeight.w800,
       letterSpacing: 1.7,
     ),
@@ -119,7 +119,7 @@ class _HiHatMarkPainter extends CustomPainter {
         width: disc.width,
         height: disc.height,
       ),
-      Paint()..color = HiHatColors.brandOrange,
+      Paint()..color = HiHatColors.signal,
     );
     canvas.drawOval(
       Rect.fromCenter(

@@ -250,7 +250,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Text(
                     'Hear what matters.',
                     style: TextStyle(
-                      color: HiHatColors.brandOrange,
+                      color: HiHatColors.signal,
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),
@@ -284,7 +284,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: HiHatColors.brandOrange),
+              Icon(icon, size: 20, color: HiHatColors.signal),
               const SizedBox(width: 10),
               Text(
                 title,

@@ -155,7 +155,7 @@ class _IdentityRail extends StatelessWidget {
         Container(
           width: 28,
           height: 1,
-          color: HiHatColors.brandOrange.withValues(alpha: .65),
+          color: HiHatColors.signal.withValues(alpha: .65),
         ),
         const SizedBox(height: 18),
         Expanded(

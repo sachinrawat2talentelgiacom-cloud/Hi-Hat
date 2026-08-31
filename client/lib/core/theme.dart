@@ -95,12 +95,11 @@ class HiHatTokens extends ThemeExtension<HiHatTokens> {
 }
 
 abstract final class HiHatColors {
-  // Brand expression. Orange identifies Hi Hat; it is not playback state.
+  // Brand expression uses the same green accent as product state.
   static const brandDark = Color(0xFF141413);
   static const brandLight = Color(0xFFFAF9F5);
   static const brandMid = Color(0xFFB0AEA5);
   static const brandLightGray = Color(0xFFE8E6DC);
-  static const brandOrange = Color(0xFFD97757);
   static const brandBlue = Color(0xFF6A9BCC);
   static const brandGreen = Color(0xFF788C5D);
 
@@ -145,7 +144,7 @@ abstract final class HiHatTheme {
       scrim: Colors.black,
       inverseSurface: HiHatColors.mineral,
       onInverseSurface: HiHatColors.chamber,
-      inversePrimary: Color(0xFFFF7A6B),
+      inversePrimary: HiHatColors.signal,
     ),
   );
 

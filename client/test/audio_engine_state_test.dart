@@ -14,6 +14,22 @@ TrackSummary item(String id) => TrackSummary(
   localPath: '$id.flac',
 );
 
+TrackSummary relatedItem(
+  String id, {
+  required String artist,
+  String? genre,
+  String? album,
+}) => TrackSummary(
+  id: 'catalog:$id',
+  provider: 'catalog',
+  providerTrackId: id,
+  title: 'Song $id',
+  artist: artist,
+  genre: genre,
+  album: album,
+  localPath: '$id.flac',
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -55,20 +71,42 @@ void main() {
   });
 
   test(
-    'starting a song automatically fills the unlimited related queue',
+    'starting a song replaces stale history with a fresh related queue',
     () async {
       final engine = AudioEngine(RelatedSearch(), player: FakePlayer());
       await Future<void>.delayed(Duration.zero);
+      await engine.addToQueue(item('stale-unrelated-history'));
       await engine.playLocal(item('seed'));
       await Future<void>.delayed(const Duration(milliseconds: 30));
       expect(engine.state.relatedAutoplay, isTrue);
-      expect(
-        engine.state.queue.map((track) => track.providerTrackId),
-        containsAll(<String>['seed', 'related-1', 'related-2']),
-      );
+      expect(engine.state.queue.map((track) => track.providerTrackId), [
+        'seed',
+        'related-1',
+        'related-2',
+      ]);
       engine.dispose();
     },
   );
+
+  test('related queue ranks same artist, then matching genre', () async {
+    final engine = AudioEngine(AffinitySearch(), player: FakePlayer());
+    await Future<void>.delayed(Duration.zero);
+    await engine.playLocal(
+      relatedItem('seed', artist: 'Mariya Takeuchi', genre: 'City Pop'),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+
+    expect(engine.state.queue.map((track) => track.providerTrackId), [
+      'seed',
+      'same-artist',
+      'same-genre',
+    ]);
+    expect(
+      engine.state.queue.map((track) => track.providerTrackId),
+      isNot(contains('unrelated')),
+    );
+    engine.dispose();
+  });
 }
 
 class RelatedSearch extends ProviderSearchService {
@@ -77,7 +115,31 @@ class RelatedSearch extends ProviderSearchService {
     item('seed'),
     item('related-1'),
     item('related-2'),
+    relatedItem('unrelated', artist: 'Different Artist'),
   ];
+}
+
+class AffinitySearch extends ProviderSearchService {
+  @override
+  Future<List<TrackSummary>> search(String query, {int limit = 30}) async {
+    if (query.toLowerCase() == 'mariya takeuchi') {
+      return [
+        relatedItem('same-artist', artist: 'Mariya Takeuchi'),
+        relatedItem('unrelated', artist: 'Different Artist'),
+      ];
+    }
+    if (query.toLowerCase() == 'city pop') {
+      return [
+        relatedItem(
+          'same-genre',
+          artist: 'Tatsuro Yamashita',
+          genre: 'City Pop',
+        ),
+        relatedItem('wrong-genre', artist: 'Rock Band', genre: 'Rock'),
+      ];
+    }
+    return [];
+  }
 }
 
 class FakePlayer implements AudioPlayerAdapter {
