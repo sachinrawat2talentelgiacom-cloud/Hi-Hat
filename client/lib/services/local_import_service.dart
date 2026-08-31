@@ -28,12 +28,15 @@ class LocalImportService {
         'The downloaded FLAC has no playable duration.',
       );
     }
+    validateTrackIdentity(metadata, requested);
     final expected = requested.durationSeconds;
     if (expected != null &&
         (metadata.durationSeconds - expected).abs() >
             (expected * 0.08).clamp(5, 12)) {
-      throw const FormatException(
-        'The downloaded FLAC is not the complete requested track.',
+      throw FormatException(
+        'The provider returned ${_duration(metadata.durationSeconds)}, but '
+        'this track should be ${_duration(expected)}. Retry to select the '
+        'correct result.',
       );
     }
 
@@ -176,6 +179,79 @@ class LocalImportService {
 
   static String safePathSegment(String value) =>
       value.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_').trim();
+
+  static void validateTrackIdentity(
+    FlacMetadata metadata,
+    TrackSummary requested,
+  ) {
+    final actualTitle = metadata.title?.trim();
+    final actualArtist = metadata.artist?.trim();
+    if (actualTitle == null ||
+        actualTitle.isEmpty ||
+        actualArtist == null ||
+        actualArtist.isEmpty) {
+      throw const FormatException(
+        'The downloaded FLAC metadata is missing its title or artist, so its '
+        'identity cannot be verified. Trying the next result.',
+      );
+    }
+
+    if (!_titleMatches(requested.title, actualTitle) ||
+        !_artistMatches(requested.artist, actualArtist)) {
+      throw FormatException(
+        'Track identity mismatch: requested "${requested.title}" by '
+        '${requested.artist}, but the downloaded FLAC is "$actualTitle" by '
+        '$actualArtist. Trying the next result.',
+      );
+    }
+  }
+
+  static bool _titleMatches(String expected, String actual) {
+    final wanted = _identityTokens(expected);
+    final received = _identityTokens(actual);
+    if (wanted.isEmpty || received.isEmpty) return false;
+    if (wanted.join(' ') == received.join(' ')) return true;
+    final overlap = wanted.toSet().intersection(received.toSet()).length;
+    final dice = (2 * overlap) / (wanted.length + received.length);
+    return dice >= 0.86;
+  }
+
+  static bool _artistMatches(String expected, String actual) {
+    final wanted = _normalizeIdentity(expected);
+    final received = _normalizeIdentity(actual);
+    if (wanted == received) return true;
+    return _primaryArtist(expected) == _primaryArtist(actual);
+  }
+
+  static String _primaryArtist(String value) => _normalizeIdentity(
+    value
+        .split(
+          RegExp(
+            r'\s*(?:,|&|\bfeat\.?\b|\bfeaturing\b|\bft\.?\b|\bwith\b)\s*',
+            caseSensitive: false,
+          ),
+        )
+        .first,
+  );
+
+  static List<String> _identityTokens(String value) =>
+      _normalizeIdentity(value)
+          .split(' ')
+          .where((token) => token.isNotEmpty)
+          .toList();
+
+  static String _normalizeIdentity(String value) => value
+      .toLowerCase()
+      .replaceAll('&', ' and ')
+      .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  static String _duration(double seconds) {
+    final total = seconds.round();
+    final minutes = total ~/ 60;
+    return '$minutes:${(total % 60).toString().padLeft(2, '0')}';
+  }
 }
 
 final localImportServiceProvider = Provider(LocalImportService.new);

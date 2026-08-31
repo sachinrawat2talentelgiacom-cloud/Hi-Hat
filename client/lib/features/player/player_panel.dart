@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/track.dart';
 import '../../core/theme.dart';
+import '../../core/scroll_behavior.dart';
 import '../../services/audio_engine.dart';
 import '../../services/download_service.dart';
 import '../../widgets/track_artwork.dart';
@@ -10,14 +11,27 @@ import '../../widgets/brand_widgets.dart';
 import 'full_player_screen.dart';
 import 'song_actions.dart';
 
-class PlayerPanel extends ConsumerWidget {
+class PlayerPanel extends ConsumerStatefulWidget {
   const PlayerPanel({super.key, this.track});
   final TrackSummary? track;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlayerPanel> createState() => _PlayerPanelState();
+}
+
+class _PlayerPanelState extends ConsumerState<PlayerPanel> {
+  final scrollController = SmoothScrollController(debugLabel: 'player-panel');
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final playback = ref.watch(audioEngineProvider);
-    final current = playback.track ?? track;
+    final current = playback.track ?? widget.track;
     final transfer = current != null
         ? ref.watch(downloadServiceProvider).forTrack(current.id)
         : null;
@@ -47,6 +61,7 @@ class PlayerPanel extends ConsumerWidget {
         : 0.0;
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
+        controller: scrollController,
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
           child: Padding(
@@ -416,7 +431,7 @@ class MiniPlayer extends ConsumerWidget {
     if (track == null) return const SizedBox.shrink();
 
     final acquiring =
-        transfer != null && PlayerPanel._isActivePhase(transfer.phase);
+        transfer != null && _PlayerPanelState._isActivePhase(transfer.phase);
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= 680;
     final totalMs = playback.duration.inMilliseconds;
@@ -466,7 +481,7 @@ class MiniPlayer extends ConsumerWidget {
                       const SizedBox(height: 2),
                       Text(
                         acquiring
-                            ? '${PlayerPanel._phase(transfer.phase)} ${PlayerPanel._percent(transfer.progress)}'
+                            ? '${_PlayerPanelState._phase(transfer.phase)} ${_PlayerPanelState._percent(transfer.progress)}'
                             : track.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -562,7 +577,7 @@ class MiniPlayer extends ConsumerWidget {
                           const SizedBox(height: 2),
                           Text(
                             acquiring
-                                ? '${PlayerPanel._phase(transfer.phase)} ${PlayerPanel._percent(transfer.progress)}'
+                                ? '${_PlayerPanelState._phase(transfer.phase)} ${_PlayerPanelState._percent(transfer.progress)}'
                                 : '${track.artist}${track.album != null ? ' · ${track.album}' : ''}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -677,7 +692,7 @@ class MiniPlayer extends ConsumerWidget {
                     Row(
                       children: [
                         Text(
-                          PlayerPanel._time(playback.position),
+                          _PlayerPanelState._time(playback.position),
                           style: const TextStyle(
                             fontSize: 11,
                             color: HiHatColors.trace,
@@ -711,7 +726,7 @@ class MiniPlayer extends ConsumerWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          PlayerPanel._time(playback.duration),
+                          _PlayerPanelState._time(playback.duration),
                           style: const TextStyle(
                             fontSize: 11,
                             color: HiHatColors.trace,

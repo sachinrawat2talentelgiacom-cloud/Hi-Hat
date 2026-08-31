@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/theme.dart';
+import '../../core/scroll_behavior.dart';
 import '../../data/app_database.dart';
 import '../../services/audio_engine.dart';
 import '../../services/flac_metadata.dart';
@@ -27,11 +28,18 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   bool scanning = false;
+  final scrollController = SmoothScrollController(debugLabel: 'library');
 
   @override
   void initState() {
     super.initState();
     Future<void>.microtask(_scanFolder);
+  }
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -42,6 +50,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final horizontal = width < 700 ? 16.0 : 28.0;
 
     return CustomScrollView(
+      controller: scrollController,
       slivers: [
         SliverToBoxAdapter(
           child: Padding(

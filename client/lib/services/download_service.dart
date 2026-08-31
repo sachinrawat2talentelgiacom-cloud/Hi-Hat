@@ -124,11 +124,18 @@ class DownloadService extends StateNotifier<DownloadsState> {
     TrackSummary? track,
   }) {
     final current = state.forTrack(trackId);
+    final normalizedProgress = progress.clamp(0.0, 1.0);
+    // Provider callbacks can arrive out of order (for example, conversion
+    // console output after the file download callback). Never let an active
+    // transfer's bar jump backwards.
+    final stableProgress = current != null && current.isActive
+        ? normalizedProgress.clamp(current.progress, 1.0)
+        : normalizedProgress;
     final nextTransfers = Map<String, TransferState>.from(state.transfers);
     nextTransfers[trackId] = TransferState(
       trackId: trackId,
       phase: phase,
-      progress: progress.clamp(0, 1),
+      progress: stableProgress,
       error: null,
       track: track ?? current?.track,
       isMinimized: current?.isMinimized ?? false,

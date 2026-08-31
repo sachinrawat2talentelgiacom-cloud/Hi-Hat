@@ -81,6 +81,14 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(FullPlayerScreen), findsOneWidget);
       expect(find.text('Now playing'), findsOneWidget);
+      expect(find.byType(TrackArtwork), findsWidgets);
+      expect(
+        find.descendant(
+          of: find.byType(LyricsView),
+          matching: find.byType(SingleChildScrollView),
+        ),
+        findsOneWidget,
+      );
       expect(engine.state.playing, isTrue);
     },
   );

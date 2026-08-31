@@ -20,9 +20,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../diagnostics/browser_acquisition_log.dart';
 import '../../models/track.dart';
+import '../../services/acquisition_supervisor.dart';
 import '../../services/download_service.dart';
 import '../../services/local_import_service.dart';
 import '../../widgets/track_artwork.dart';
+
+String acquisitionSearchQuery(TrackSummary track) {
+  final primaryArtist = track.artist
+      .split(RegExp(r',|&|\bfeat(?:uring)?\.?\b', caseSensitive: false))
+      .first
+      .trim();
+  return [
+    track.title.trim(),
+    primaryArtist,
+  ].where((part) => part.isNotEmpty).join(' ');
+}
 
 enum BrowserAcquisitionPhase {
   openingSource,
@@ -62,6 +74,7 @@ class _BrowserAcquisitionScreenState
   int previousSize = -1;
   bool downloadRequested = false;
   bool automationRunning = false;
+  final acquisitionSupervisor = AcquisitionSupervisor();
   bool scanRunning = false;
   bool showProviderBrowser = false;
   bool debugVisible = false;
@@ -82,11 +95,12 @@ class _BrowserAcquisitionScreenState
   RandomAccessFile? blobOutput;
   BrowserAcquisitionLog? acquisitionLog;
 
-  String get searchQuery => <String?>[
-    widget.track.title,
-    widget.track.artist,
-    widget.track.album,
-  ].whereType<String>().where((part) => part.trim().isNotEmpty).join(' ');
+  String get searchQuery => acquisitionSearchQuery(widget.track);
+
+  String get primaryArtist => widget.track.artist
+      .split(RegExp(r',|&|\bfeat(?:uring)?\.?\b', caseSensitive: false))
+      .first
+      .trim();
 
   String get trackUrl =>
       'https://monochrome.tf/search/${Uri.encodeComponent(searchQuery)}';
@@ -160,12 +174,16 @@ class _BrowserAcquisitionScreenState
   }
 
   Future<void> _onLoaded(InAppWebViewController controller) async {
-    if (cancelled) return;
+    if (cancelled || downloadRequested || automationRunning) return;
+    if (!acquisitionSupervisor.beginSearchAttempt()) return;
+    // Lock before the first await: WebView can emit load and progress events
+    // together, and both must not enter the download action concurrently.
+    automationRunning = true;
     await acquisitionLog?.event('AUTOMATION_TICK', {
       'downloadRequested': downloadRequested,
       'automationRunning': automationRunning,
+      'attempt': acquisitionSupervisor.searchAttempts,
     });
-    if (downloadRequested || automationRunning) return;
     final current = await controller.getUrl();
     await acquisitionLog?.event('PAGE_URL_READ', {
       'url': _safeUrl(current),
@@ -195,9 +213,9 @@ class _BrowserAcquisitionScreenState
         'url': _safeUrl(current),
         'expectedPath': expectedPath,
       });
+      automationRunning = false;
       return;
     }
-    automationRunning = true;
     try {
       final result = await controller.evaluateJavascript(
         source:
@@ -212,7 +230,8 @@ class _BrowserAcquisitionScreenState
 
             const trackId = ${jsonEncode(widget.track.providerTrackId)};
             const wantedTitle = ${jsonEncode(widget.track.title.toLowerCase())};
-            const wantedArtist = ${jsonEncode(widget.track.artist.toLowerCase())};
+            const wantedArtist = ${jsonEncode(primaryArtist.toLowerCase())};
+            const candidateOffset = ${acquisitionSupervisor.candidateOffset};
             const normalize = (value) => (value || '')
               .toLowerCase()
               .replace(/\\s+/g, ' ')
@@ -222,13 +241,50 @@ class _BrowserAcquisitionScreenState
               const style = window.getComputedStyle(element);
               return style.display !== 'none' && style.visibility !== 'hidden' && element.offsetParent !== null;
             };
+            const rowFor = (element) => element?.closest(
+              'li, [role="row"], [data-type="track"], .track, .track-item, .media-item, tr'
+            ) || element;
+            const matchesWantedRow = (element) => {
+              const row = rowFor(element);
+              if (!visible(row)) return false;
+              const labels = [...row.querySelectorAll('span, p, a, strong, small, div')]
+                .filter(visible)
+                .map((label) => normalize(label.innerText || label.textContent));
+              const titleMatch = labels.some((text) =>
+                text === wantedTitle || text.startsWith(`\${wantedTitle} (`) ||
+                text.startsWith(`\${wantedTitle} -`)
+              );
+              const artistMatch = !wantedArtist || labels.some((text) =>
+                text === wantedArtist || text.startsWith(`\${wantedArtist},`) ||
+                text.startsWith(`\${wantedArtist} &`) ||
+                text.startsWith(`\${wantedArtist} feat`)
+              );
+              return titleMatch && artistMatch;
+            };
+            const notices = () => [...document.querySelectorAll(
+              '[role="alert"], [role="status"], .toast, [class*="toast" i], [class*="notification" i]'
+            )].filter(visible).map((element) =>
+              normalize(element.innerText || element.textContent)
+            ).filter(Boolean);
+            const clickAndReport = async (button, action, row) => {
+              const before = new Set(notices());
+              button.click();
+              await new Promise((resolve) => setTimeout(resolve, 250));
+              const message = notices().find((text) => !before.has(text));
+              if (message) return `provider-error:\${message}`;
+              return `started:\${action}:\${normalize(row.innerText).slice(0, 160)}`;
+            };
 
             let target = document.querySelector(
               `[data-track-id="\${CSS.escape(trackId)}"], ` +
               `[data-id="\${CSS.escape(trackId)}"], ` +
               `a[href*="/track/\${CSS.escape(trackId)}"]`
             );
-            if (!visible(target)) target = null;
+            if (!visible(target) || !matchesWantedRow(target)) {
+              target = null;
+            } else {
+              target = rowFor(target);
+            }
 
             if (!target) {
               const artistLabels = [...document.querySelectorAll(
@@ -251,40 +307,46 @@ class _BrowserAcquisitionScreenState
                     rect.width >= 50 && text.length <= 300;
                   if (compactRow && text.includes(wantedTitle) &&
                       (!wantedArtist || text.includes(wantedArtist)) &&
-                      !text.startsWith('search results for')) {
-                    candidates.push({element, text, area: rect.width * rect.height});
+                      !text.startsWith('search results for') &&
+                      matchesWantedRow(element)) {
+                    candidates.push({
+                      element,
+                      text,
+                      area: rect.width * rect.height,
+                      top: Math.round(rect.top),
+                    });
                   }
                   element = element.parentElement;
                 }
               }
               candidates.sort((a, b) => a.area - b.area || a.text.length - b.text.length);
-              target = candidates[0]?.element || null;
+              const uniqueCandidates = candidates.filter((candidate, index, all) =>
+                all.findIndex((other) => other.top === candidate.top) === index
+              );
+              target = uniqueCandidates[candidateOffset]?.element || null;
             }
 
             if (!target) {
               const allRows = [...document.querySelectorAll('li, [role="row"], [data-type="track"], .track, .track-item, .media-item, tr')];
+              const matchingRows = [];
               for (const row of allRows) {
                 if (!visible(row)) continue;
-                const text = normalize(row.innerText || row.textContent);
-                if (text.includes(wantedTitle) && (!wantedArtist || text.includes(wantedArtist))) {
-                  target = row;
-                  break;
+                if (matchesWantedRow(row)) {
+                  matchingRows.push(row);
                 }
               }
+              target = matchingRows[candidateOffset] || null;
             }
 
             if (!target) return 'loading:matching-row-not-found';
-            const row = target.closest(
-              'li, [role="row"], [data-type="track"], .track, .track-item, .media-item'
-            ) || target;
+            const row = rowFor(target);
             row.scrollIntoView({block: 'center', behavior: 'instant'});
 
             const inlineDownload = row.querySelector(
               '[data-action="download"], button[title*="download" i], button[aria-label*="download" i], a[download]'
             );
             if (inlineDownload && visible(inlineDownload)) {
-              inlineDownload.click();
-              return `started:inline-download:\${normalize(row.innerText).slice(0, 160)}`;
+              return await clickAndReport(inlineDownload, 'inline-download', row);
             }
 
             const rect = row.getBoundingClientRect();
@@ -301,9 +363,18 @@ class _BrowserAcquisitionScreenState
               clientY: clickY,
             }));
 
-            const findContextDownload = () => document.querySelector(
-              '#context-menu li[data-action="download"], #context-menu [data-action="download"], li[data-action="download"], [data-action="download"]'
-            );
+            const findContextDownload = () => {
+              const attributed = document.querySelector(
+                '#context-menu li[data-action="download"], #context-menu [data-action="download"], li[data-action="download"], [data-action="download"]'
+              );
+              if (visible(attributed)) return attributed;
+              const menuItems = [...document.querySelectorAll(
+                '[role="menuitem"], [role="menu"] li, [class*="menu" i] li, [class*="menu" i] button, [class*="menu" i] div'
+              )].filter(visible);
+              return menuItems.find((item) =>
+                normalize(item.innerText || item.textContent) === 'download'
+              ) || null;
+            };
             let contextDownload = findContextDownload();
             if (!contextDownload) {
               const moreButton = row.querySelector(
@@ -322,8 +393,7 @@ class _BrowserAcquisitionScreenState
             }
 
             if (!contextDownload) return 'loading:context-download-not-found';
-            contextDownload.click();
-            return `started:context-download:\${normalize(row.innerText).slice(0, 160)}`;
+            return await clickAndReport(contextDownload, 'context-download', row);
           })();
         ''',
       );
@@ -346,7 +416,7 @@ class _BrowserAcquisitionScreenState
         await acquisitionLog?.event('DOWNLOAD_BUTTON_CLICKED', {
           'action': state,
         });
-        downloadRequested = true;
+        acquisitionSupervisor.markActionIssued();
         setState(() {
           phase = BrowserAcquisitionPhase.startingDownload;
           showProviderBrowser = debugVisible;
@@ -357,25 +427,11 @@ class _BrowserAcquisitionScreenState
         ref
             .read(downloadServiceProvider.notifier)
             .setMinimized(widget.track.id, true);
-        downloadStartDeadline?.cancel();
-        downloadStartDeadline = Timer(const Duration(minutes: 2), () {
-          if (!mounted || phase != BrowserAcquisitionPhase.startingDownload) {
-            return;
-          }
-          const message =
-              'The provider accepted Download, but no file transfer started.';
-          setState(() {
-            phase = BrowserAcquisitionPhase.failed;
-            detail = message;
-          });
-          ref
-              .read(downloadServiceProvider.notifier)
-              .fail(widget.track.id, 'DOWNLOAD_NOT_STARTED: $message');
-          acquisitionLog?.event('DOWNLOAD_CALLBACK_TIMEOUT', {
-            'timeoutSeconds': 120,
-            'lastKnownUrl': trackUrl,
-          });
-        });
+      } else if (state?.startsWith('provider-error:') ?? false) {
+        final message = state!.substring('provider-error:'.length).trim();
+        _failAutomation(
+          message.isEmpty ? 'The provider rejected the download.' : message,
+        );
       } else {
         setState(() => phase = BrowserAcquisitionPhase.matchingTrack);
         ref
@@ -403,14 +459,56 @@ class _BrowserAcquisitionScreenState
       automationRunning = false;
       if (mounted &&
           !downloadRequested &&
-          phase != BrowserAcquisitionPhase.failed) {
+          phase != BrowserAcquisitionPhase.failed &&
+          phase != BrowserAcquisitionPhase.waitingForAuthorization) {
         automationTimer?.cancel();
         automationTimer = Timer(
-          const Duration(milliseconds: 150),
-          () => _onLoaded(controller),
+          AcquisitionSupervisor.pollInterval,
+          () => _superviseAcquisition(controller),
         );
       }
     }
+  }
+
+  void _superviseAcquisition(InAppWebViewController controller) {
+    if (!mounted || cancelled || downloadRequested) return;
+    final directive = acquisitionSupervisor.check();
+    acquisitionLog?.event('ACQUISITION_SUPERVISOR_CHECK', {
+      'directive': directive.name,
+      'searchAttempts': acquisitionSupervisor.searchAttempts,
+      'downloadStartChecks': acquisitionSupervisor.downloadStartChecks,
+    });
+    switch (directive) {
+      case AcquisitionDirective.search:
+        _onLoaded(controller);
+        return;
+      case AcquisitionDirective.waitForDownload:
+        automationTimer?.cancel();
+        automationTimer = Timer(
+          AcquisitionSupervisor.pollInterval,
+          () => _superviseAcquisition(controller),
+        );
+        return;
+      case AcquisitionDirective.searchFailed:
+        final lastFailure = acquisitionSupervisor.lastFailure;
+        _failAutomation(
+          'The requested track was not found after '
+          '${acquisitionSupervisor.maximumChecks} checks.'
+          '${lastFailure == null ? '' : ' Last failure: $lastFailure'}',
+        );
+        return;
+      case AcquisitionDirective.downloadFailed:
+        _failAutomation(
+          'The provider accepted Download, but no file transfer started.',
+        );
+        return;
+      case AcquisitionDirective.complete:
+        return;
+    }
+  }
+
+  void _failAutomation(String message) {
+    unawaited(_handleAcquisitionFailure(message));
   }
 
   Future<DownloadStartResponse?> _onDownloadStarted(
@@ -418,6 +516,7 @@ class _BrowserAcquisitionScreenState
   ) async {
     if (cancelled) return null;
     downloadRequested = true;
+    acquisitionSupervisor.markTransferStarted();
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
     await acquisitionLog?.event('DOWNLOAD_CALLBACK_RECEIVED', {
@@ -432,7 +531,7 @@ class _BrowserAcquisitionScreenState
     });
     ref
         .read(downloadServiceProvider.notifier)
-        .update(widget.track.id, 'DOWNLOADING', progress: 0.88);
+        .update(widget.track.id, 'DOWNLOADING', progress: 0.1);
     expectedFilename = request.suggestedFilename;
     expectedLength = request.contentLength > 0 ? request.contentLength : null;
 
@@ -564,6 +663,17 @@ class _BrowserAcquisitionScreenState
         options: options,
         cancelToken: cancelToken,
         deleteOnError: true,
+        onReceiveProgress: (received, total) {
+          if (cancelled || total <= 0) return;
+          final ratio = (received / total).clamp(0.0, 1.0);
+          ref
+              .read(downloadServiceProvider.notifier)
+              .update(
+                widget.track.id,
+                'DOWNLOADING',
+                progress: 0.1 + (ratio * 0.8),
+              );
+        },
       );
       if (!cancelled) {
         await acquisitionLog?.event('DOWNLOAD_SAVED_FROM_HTTP', {
@@ -580,45 +690,99 @@ class _BrowserAcquisitionScreenState
         'error': e.toString(),
         'stack': stack.toString(),
       });
+      await _failDownload(
+        'The file transfer failed. Check your connection and retry.',
+      );
     } catch (e, stack) {
       if (cancelled) return;
       await acquisitionLog?.event('HTTP_DOWNLOAD_ERROR', {
         'error': e.toString(),
         'stack': stack.toString(),
       });
+      await _failDownload(
+        'The downloaded file could not be saved. Please retry.',
+      );
     }
   }
 
-  Future<void> _handleDownloadedBytesFromBase64(
-    String base64Data, {
-    String? filename,
-    String? mimeType,
+  Future<void> _failDownload(String message) =>
+      _handleAcquisitionFailure(message, partial: controlledDownloadFile);
+
+  Future<void> _handleAcquisitionFailure(
+    String message, {
+    File? partial,
   }) async {
-    if (cancelled) return;
-    downloadRequested = true;
+    if (!mounted || cancelled || finished) return;
+    monitor?.cancel();
     automationTimer?.cancel();
-    downloadStartDeadline?.cancel();
+    final recovery = acquisitionSupervisor.classifyFailure(message);
+    await acquisitionLog?.event('ACQUISITION_FAILURE_CLASSIFIED', {
+      'message': message,
+      'recovery': recovery.name,
+      'recoveryAttempt': acquisitionSupervisor.recoveryAttempts,
+      'candidateOffset': acquisitionSupervisor.candidateOffset,
+    });
+    if (recovery == AcquisitionRecovery.stop) {
+      _showTerminalFailure(message);
+      return;
+    }
+
+    final failedFile = partial ?? controlledDownloadFile;
+    if (failedFile != null) {
+      try {
+        if (await failedFile.exists()) await failedFile.delete();
+      } catch (_) {
+        // The next controlled download deletes any file still held by WebView.
+      }
+    }
+    downloadRequested = false;
+    automationRunning = false;
+    controlledDownloadFile = null;
+    expectedFilename = null;
+    expectedLength = null;
+    stableReads = 0;
+    previousSize = -1;
     setState(() {
-      phase = BrowserAcquisitionPhase.downloading;
-      detail = filename ?? expectedFilename;
+      phase = BrowserAcquisitionPhase.matchingTrack;
+      detail = recovery == AcquisitionRecovery.retryNextCandidate
+          ? 'That result did not match. Trying the next best result…'
+          : 'The attempt failed. Retrying automatically…';
     });
     ref
         .read(downloadServiceProvider.notifier)
-        .update(widget.track.id, 'DOWNLOADING', progress: 0.88);
-    final root = await getApplicationSupportDirectory();
-    if (cancelled) return;
-    final folder = Directory(
-      p.join(root.path, 'Acquisitions', widget.track.providerTrackId),
+        .update(widget.track.id, 'MATCHING_TRACK', progress: 0.06);
+    final controller = webViewController;
+    if (controller == null) {
+      _showTerminalFailure('$message The provider browser is unavailable.');
+      return;
+    }
+    try {
+      await controller.reload();
+    } catch (_) {
+      _showTerminalFailure('$message The provider page could not be reloaded.');
+      return;
+    }
+    automationTimer?.cancel();
+    automationTimer = Timer(
+      AcquisitionSupervisor.pollInterval,
+      () => _onLoaded(controller),
     );
-    await folder.create(recursive: true);
-    final incoming = File(p.join(folder.path, 'incoming.flac'));
-    controlledDownloadFile = incoming;
-    await _saveDataUri(base64Data, incoming);
+  }
+
+  void _showTerminalFailure(String message) {
+    if (!mounted || cancelled || finished) return;
+    setState(() {
+      phase = BrowserAcquisitionPhase.failed;
+      detail = message;
+      showProviderBrowser = true;
+    });
+    ref.read(downloadServiceProvider.notifier).fail(widget.track.id, message);
   }
 
   Future<bool> _startChunkedBlobDownload(String? filename) async {
     if (cancelled) return false;
     downloadRequested = true;
+    acquisitionSupervisor.markTransferStarted();
     automationTimer?.cancel();
     downloadStartDeadline?.cancel();
     setState(() {
@@ -627,7 +791,7 @@ class _BrowserAcquisitionScreenState
     });
     ref
         .read(downloadServiceProvider.notifier)
-        .update(widget.track.id, 'DOWNLOADING', progress: 0.88);
+        .update(widget.track.id, 'DOWNLOADING', progress: 0.1);
     final root = await getApplicationSupportDirectory();
     if (cancelled) return false;
     final folder = Directory(
@@ -732,10 +896,24 @@ class _BrowserAcquisitionScreenState
         'expectedLength': expectedLength,
         'stableReads': stableReads,
       });
+      final total = expectedLength;
+      if (total != null && total > 0) {
+        final ratio = (size / total).clamp(0.0, 1.0);
+        ref
+            .read(downloadServiceProvider.notifier)
+            .update(
+              widget.track.id,
+              'DOWNLOADING',
+              progress: 0.1 + (ratio * 0.8),
+            );
+      }
       if (expectedLength != null && size != expectedLength) return;
       stableReads = size == previousSize ? stableReads + 1 : 0;
       previousSize = size;
-      if (size <= 1024 || stableReads < 1) return;
+      // WebView2 can pause writes briefly while buffering. Requiring several
+      // unchanged observations prevents importing a valid FLAC header before
+      // the rest of the track has reached disk.
+      if (size <= 1024 || stableReads < 5) return;
       monitor?.cancel();
       await _finalize(file);
     } finally {
@@ -772,18 +950,9 @@ class _BrowserAcquisitionScreenState
       if (!mounted || cancelled) return;
       _finish(local);
     } catch (error) {
+      final message = error.toString().replaceFirst('FormatException: ', '');
       await acquisitionLog?.event('IMPORT_FAILED', {'error': error.toString()});
-      if (!mounted) return;
-      setState(() {
-        phase = BrowserAcquisitionPhase.failed;
-        detail = error.toString().replaceFirst('FormatException: ', '');
-      });
-      ref
-          .read(downloadServiceProvider.notifier)
-          .fail(
-            widget.track.id,
-            error.toString().replaceFirst('FormatException: ', ''),
-          );
+      await _handleAcquisitionFailure(message, partial: file);
     }
   }
 
@@ -1160,6 +1329,7 @@ class _BrowserAcquisitionScreenState
                           phase = BrowserAcquisitionPhase.openingSource;
                           detail = null;
                           downloadRequested = false;
+                          acquisitionSupervisor.reset();
                         });
                         webViewController?.reload();
                       }

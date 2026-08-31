@@ -25,7 +25,9 @@ class DiscoveryService {
   final DiscoverySearch _search;
   final Random _random;
 
-  static const maximumTracks = 48;
+  static const maximumTracks = 300;
+  static const maximumSeedSearches = 8;
+  static const tracksPerSearch = 50;
   static const availableGenres = <String>[
     'Pop',
     'Rock',
@@ -61,7 +63,14 @@ class DiscoveryService {
     'the weeknd': {'r&b', 'pop'},
   };
 
-  static const fallbackSeeds = <String>{'popular music', 'new music'};
+  static const fallbackSeeds = <String>{
+    'popular music',
+    'new music',
+    'trending songs',
+    'global hits',
+    'top tracks',
+    'viral music',
+  };
 
   static Set<String> genreSeedsFor(
     List<String> artists,
@@ -81,7 +90,11 @@ class DiscoveryService {
   }) {
     final unique = <String, TrackSummary>{};
     for (final track in tracks) {
-      unique.putIfAbsent(track.providerTrackId, () => track);
+      final primaryArtist = _normalize(track.artist)
+          .split(RegExp(r'\s+(?:feat\.?|featuring|with|x)\s+|\s*[,;&]\s*'))
+          .first;
+      final identity = '${_normalize(track.title)}|$primaryArtist';
+      unique.putIfAbsent(identity, () => track);
     }
     final result = unique.values.toList()..shuffle(random ?? Random());
     return result.take(limit).toList(growable: false);
@@ -95,19 +108,18 @@ class DiscoveryService {
         .map((artist) => artist.trim())
         .where((artist) => artist.isNotEmpty)
         .toList(growable: false);
-    final seeds = genreSeedsFor(cleanArtists, genres);
-    final prioritizedSeeds = seeds.take(3).toList(growable: false);
+    final preferenceSeeds = <String>{
+      ...genres.map(_normalize),
+      for (final artist in cleanArtists)
+        ...?artistGenreSeeds[_normalize(artist)],
+    }..removeWhere((seed) => seed.isEmpty);
     final ownTracks = <TrackSummary>[];
     final similarTracks = <TrackSummary>[];
     var successfulSearches = 0;
 
-    final allSearches = await Future.wait([
-      ...cleanArtists.map((artist) => _safeSearch(artist)),
-      ...prioritizedSeeds.map((seed) => _safeSearch(seed)),
-    ]);
-
-    final artistResults = allSearches.sublist(0, cleanArtists.length);
-    final seedResults = allSearches.sublist(cleanArtists.length);
+    final artistResults = await Future.wait(
+      cleanArtists.map((artist) => _safeSearch(artist)),
+    );
 
     for (var index = 0; index < artistResults.length; index++) {
       final result = artistResults[index];
@@ -118,6 +130,32 @@ class DiscoveryService {
         ),
       );
     }
+
+    // Catalog metadata can identify a selected artist's genre even when the
+    // artist is not in the small built-in map. Those genres become the most
+    // relevant expansion seeds instead of falling back to generic charts.
+    for (final track in ownTracks) {
+      final genre = track.genre;
+      if (genre == null) continue;
+      preferenceSeeds.addAll(
+        genre
+            .split(RegExp(r'[,;/]'))
+            .map(_normalize)
+            .where((value) => value.isNotEmpty),
+      );
+    }
+    final seeds = preferenceSeeds.isNotEmpty
+        ? preferenceSeeds.toList()
+        : cleanArtists.isEmpty
+        ? fallbackSeeds.toList()
+        : <String>[];
+    seeds.shuffle(_random);
+    final prioritizedSeeds = seeds
+        .take(maximumSeedSearches)
+        .toList(growable: false);
+    final seedResults = await Future.wait(
+      prioritizedSeeds.map((seed) => _safeSearch(seed)),
+    );
 
     final ownIds = ownTracks.map((track) => track.providerTrackId).toSet();
     for (final result in seedResults) {
@@ -139,7 +177,7 @@ class DiscoveryService {
     try {
       return _DiscoverySearchResult(
         succeeded: true,
-        tracks: await _search(query, limit: 18),
+        tracks: await _search(query, limit: tracksPerSearch),
       );
     } catch (_) {
       return const _DiscoverySearchResult(succeeded: false, tracks: []);

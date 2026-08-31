@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../core/scroll_behavior.dart';
 import '../../models/track.dart';
 import '../../models/album.dart';
 import '../../services/download_service.dart';
@@ -27,6 +28,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final controller = TextEditingController();
   final focusNode = FocusNode();
+  final scrollController = SmoothScrollController(debugLabel: 'search');
   Timer? debounce;
   AsyncValue<List<AlbumSummary>> albums = const AsyncValue.data([]);
   int albumGeneration = 0;
@@ -54,6 +56,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     debounce?.cancel();
     controller.dispose();
     focusNode.dispose();
+    scrollController.dispose();
     super.dispose();
   }
 
@@ -66,6 +69,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final horizontal = MediaQuery.sizeOf(context).width < 700 ? 16.0 : 28.0;
 
     return CustomScrollView(
+      controller: scrollController,
       slivers: [
         SliverToBoxAdapter(
           child: Padding(

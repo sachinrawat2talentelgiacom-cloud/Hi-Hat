@@ -45,5 +45,8 @@ Write-Host 'Starting Hi Hat' -ForegroundColor Green
 if ($LASTEXITCODE -ne 0) { throw 'Flutter dependency setup failed.' }
 # Impeller's Windows OpenGL backend intermittently faults inside
 # flutter_windows.dll on this machine. Skia avoids that native startup crash.
-& $flutter run -d windows --no-enable-impeller
+if ([string]::IsNullOrWhiteSpace($env:HI_HAT_DEEPL_API_KEY)) {
+    throw 'DEEPL_KEY_MISSING: Add HI_HAT_DEEPL_API_KEY to backend/.env before starting Hi Hat.'
+}
+& $flutter run -d windows --no-enable-impeller --dart-define="DEEPL_API_KEY=$env:HI_HAT_DEEPL_API_KEY"
 if ($LASTEXITCODE -ne 0) { throw "Flutter exited with code $LASTEXITCODE." }

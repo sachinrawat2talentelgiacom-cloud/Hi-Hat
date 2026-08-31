@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme.dart';
+import '../../core/scroll_behavior.dart';
 import '../../diagnostics/browser_acquisition_log.dart';
 import '../../services/library_folder_service.dart';
 import '../../widgets/brand_widgets.dart';
@@ -21,6 +22,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool browserDebugVisible = false;
   String? libraryFolder;
   bool choosingFolder = false;
+  final scrollController = SmoothScrollController(debugLabel: 'settings');
 
   @override
   void initState() {
@@ -39,11 +41,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final horizontal = width < 700 ? 16.0 : 28.0;
 
     return CustomScrollView(
+      controller: scrollController,
       slivers: [
         SliverPadding(
           padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 48),

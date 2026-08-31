@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../core/scroll_behavior.dart';
 import '../../models/track.dart';
 import '../../services/artist_preferences_store.dart';
 import '../../services/audio_engine.dart';
@@ -27,7 +28,41 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const _pageSize = 20;
+
   bool pickerVisible = false;
+  int visibleDiscoveryTracks = _pageSize;
+  late final ScrollController scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    scrollController = SmoothScrollController(debugLabel: 'home');
+    scrollController.addListener(_loadNextDiscoveryPage);
+  }
+
+  @override
+  void dispose() {
+    scrollController
+      ..removeListener(_loadNextDiscoveryPage)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _loadNextDiscoveryPage() {
+    if (!scrollController.hasClients ||
+        scrollController.position.extentAfter > 900) {
+      return;
+    }
+    final tracks = ref.read(discoveryControllerProvider).valueOrNull;
+    if (tracks == null || visibleDiscoveryTracks >= tracks.length) return;
+    setState(() {
+      visibleDiscoveryTracks = (visibleDiscoveryTracks + _pageSize).clamp(
+        0,
+        tracks.length,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,9 +72,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final width = MediaQuery.sizeOf(context).width;
     final horizontal = width < 700 ? 16.0 : 28.0;
     ref.listen<AsyncValue<List<TrackSummary>>>(discoveryControllerProvider, (
-      _,
+      previous,
       next,
     ) {
+      final previousTracks = previous?.valueOrNull;
+      final nextTracks = next.valueOrNull;
+      if (nextTracks != null && !identical(previousTracks, nextTracks)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => visibleDiscoveryTracks = _pageSize);
+        });
+      }
       if (next is AsyncData &&
           !ref.read(discoveryControllerProvider.notifier).hasArtists) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -49,6 +91,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
 
     return CustomScrollView(
+      controller: scrollController,
       slivers: [
         SliverPadding(
           padding: EdgeInsets.fromLTRB(horizontal, 30, horizontal, 24),
@@ -142,6 +185,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       data: (tracks) {
+        final visibleTracks = tracks
+            .take(visibleDiscoveryTracks)
+            .toList(growable: false);
         final preferences = ref.read(discoveryControllerProvider.notifier);
         if (!preferences.hasArtists) {
           return SliverFillRemaining(
@@ -288,9 +334,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   crossAxisSpacing: 16,
                   childAspectRatio: 0.74,
                 ),
-                itemCount: tracks.length,
+                itemCount: visibleTracks.length,
                 itemBuilder: (context, index) {
-                  final track = tracks[index];
+                  final track = visibleTracks[index];
                   return TrackCardBlock(
                     track: track,
                     onTap: () => _play(track),

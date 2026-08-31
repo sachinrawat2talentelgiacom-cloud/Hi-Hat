@@ -1,10 +1,12 @@
-import 'package:flutter/foundation.dart';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/audio_engine.dart';
 import '../../core/theme.dart';
+import '../../core/scroll_behavior.dart';
 import '../../services/lyrics_service.dart';
 import '../../services/lyrics_translation_service.dart';
 import '../../services/track_playback_coordinator.dart';
@@ -48,18 +50,30 @@ class FullPlayerScreen extends ConsumerWidget {
                       final tokens = Theme.of(context)
                           .extension<HiHatTokens>()!;
                       final wide = c.maxWidth >= 760;
-                      final art = ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 440),
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: TrackArtwork(
-                            artworkUrl: track.highResArtworkUrl,
-                            highRes: true,
-                            iconSize: 90,
-                            borderRadius: BorderRadius.circular(
-                              tokens.radiusMd,
-                            ),
-                          ),
+                      final horizontalPadding = wide
+                          ? tokens.spaceXl
+                          : tokens.spaceMd;
+                      final availableWidth =
+                          c.maxWidth - (horizontalPadding * 2);
+                      final artSize = wide
+                          ? math.min(
+                              440.0,
+                              math.min(
+                                (availableWidth - 48) / 2,
+                                c.maxHeight - tokens.spaceLg - tokens.spaceXl,
+                              ),
+                            )
+                          : math.min(
+                              300.0,
+                              math.min(availableWidth, c.maxHeight * .26),
+                            );
+                      final art = SizedBox.square(
+                        dimension: artSize,
+                        child: TrackArtwork(
+                          artworkUrl: track.highResArtworkUrl,
+                          highRes: true,
+                          iconSize: 90,
+                          borderRadius: BorderRadius.circular(tokens.radiusMd),
                         ),
                       );
                       final details = Card(
@@ -105,16 +119,21 @@ class FullPlayerScreen extends ConsumerWidget {
                                 ],
                               ),
                               const SizedBox(height: 24),
-                              LyricsView(key: ValueKey(track.providerTrackId)),
+                              Expanded(
+                                child: LyricsView(
+                                  key: ValueKey(track.providerTrackId),
+                                  scrollable: true,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       );
-                      return SingleChildScrollView(
+                      return Padding(
                         padding: EdgeInsets.fromLTRB(
-                          wide ? tokens.spaceXl : tokens.spaceMd,
+                          horizontalPadding,
                           tokens.spaceLg,
-                          wide ? tokens.spaceXl : tokens.spaceMd,
+                          horizontalPadding,
                           tokens.spaceXl,
                         ),
                         child: DecoratedBox(
@@ -133,7 +152,7 @@ class FullPlayerScreen extends ConsumerWidget {
                               ? Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(child: art),
+                                    art,
                                     const SizedBox(width: 48),
                                     Expanded(child: details),
                                   ],
@@ -141,8 +160,8 @@ class FullPlayerScreen extends ConsumerWidget {
                               : Column(
                                   children: [
                                     art,
-                                    const SizedBox(height: 24),
-                                    details,
+                                    SizedBox(height: tokens.spaceMd),
+                                    Expanded(child: details),
                                   ],
                                 ),
                         ),
@@ -317,47 +336,34 @@ class _Volume extends ConsumerWidget {
   );
 }
 
-class LyricsView extends ConsumerWidget {
-  const LyricsView({super.key});
+class LyricsView extends ConsumerStatefulWidget {
+  const LyricsView({super.key, this.scrollable = false});
+
+  final bool scrollable;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LyricsView> createState() => _LyricsViewState();
+}
+
+class _LyricsViewState extends ConsumerState<LyricsView> {
+  final scrollController = SmoothScrollController(debugLabel: 'lyrics');
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final playback = ref.watch(audioEngineProvider);
     final track = playback.track;
     if (track == null) return const SizedBox.shrink();
     final showEnglish = ref.watch(
       _showEnglishLyricsProvider(track.providerTrackId),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Lyrics',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Original')),
-                ButtonSegment(value: true, label: Text('English')),
-              ],
-              selected: {showEnglish},
-              onSelectionChanged: (selection) =>
-                  ref
-                          .read(
-                            _showEnglishLyricsProvider(track.providerTrackId)
-                                .notifier,
-                          )
-                          .state =
-                      selection.first,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (showEnglish)
-          ref
+    final lyricsContent = showEnglish
+        ? ref
               .watch(englishLyricsProvider(track))
               .when(
                 loading: () => const Center(
@@ -381,15 +387,14 @@ class LyricsView extends ConsumerWidget {
                             style: const TextStyle(height: 1.65),
                           ),
                           const SizedBox(height: 12),
-                          Text(switch (defaultTargetPlatform) {
-                            TargetPlatform.android || TargetPlatform.iOS => 'Translated on-device with Google ML Kit. Machine translations may miss wordplay or cultural context.',
-                            _ => 'Translated online with DeepL. Machine translations may miss wordplay or cultural context.',
-                          }, style: const TextStyle(fontSize: 12)),
+                          const Text(
+                            'Translated online with DeepL. Machine translations may miss wordplay or cultural context.',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ],
                       ),
               )
-        else
-          ref
+        : ref
               .watch(lyricsProvider(track))
               .when(
                 loading: () => const Center(
@@ -444,8 +449,57 @@ class LyricsView extends ConsumerWidget {
                     ],
                   );
                 },
-              ),
+              );
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final title = Text(
+              'Lyrics',
+              style: Theme.of(context).textTheme.titleLarge,
+            );
+            final languageSelector = SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('Original')),
+                ButtonSegment(value: true, label: Text('English')),
+              ],
+              selected: {showEnglish},
+              onSelectionChanged: (selection) =>
+                  ref
+                          .read(
+                            _showEnglishLyricsProvider(track.providerTrackId)
+                                .notifier,
+                          )
+                          .state =
+                      selection.first,
+            );
+            if (constraints.maxWidth < 360) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [title, const SizedBox(height: 8), languageSelector],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: title),
+                languageSelector,
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.only(right: 4, bottom: 12),
+          child: lyricsContent,
+        ),
       ],
+    );
+    if (!widget.scrollable) return content;
+    return SingleChildScrollView(
+      controller: scrollController,
+      primary: false,
+      child: content,
     );
   }
 }

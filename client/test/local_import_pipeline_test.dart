@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hi_hat/data/app_database.dart';
 import 'package:hi_hat/models/track.dart';
+import 'package:hi_hat/services/flac_metadata.dart';
 import 'package:hi_hat/services/local_import_service.dart';
 
 void main() {
@@ -25,8 +26,8 @@ void main() {
       id: 'fixture:gapless-1',
       provider: 'fixture',
       providerTrackId: 'gapless-1',
-      title: 'Fallback title',
-      artist: 'Fallback artist',
+      title: 'Gapless FLAC #1',
+      artist: 'Me',
       album: 'Fallback album',
       durationSeconds: 10,
     );
@@ -53,5 +54,35 @@ void main() {
     expect(persisted, isNotNull);
     expect(File(persisted!.localPath).existsSync(), isTrue);
     expect(persisted.title, 'Gapless FLAC #1');
+  });
+
+  test('rejects a same-duration FLAC with the wrong title and artist', () {
+    const requested = TrackSummary(
+      id: 'catalog:runaway',
+      provider: 'catalog',
+      providerTrackId: 'runaway',
+      title: 'Runaway',
+      artist: 'Kanye West, Pusha T',
+      durationSeconds: 323,
+    );
+    const wrongMetadata = FlacMetadata(
+      title: 'Kanye West (Runaway)',
+      artist: 'Nikita Kondrashev',
+      sampleRate: 44100,
+      bitDepth: 24,
+      channels: 2,
+      durationSeconds: 323,
+    );
+
+    expect(
+      () => LocalImportService.validateTrackIdentity(wrongMetadata, requested),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('Track identity mismatch'),
+        ),
+      ),
+    );
   });
 }

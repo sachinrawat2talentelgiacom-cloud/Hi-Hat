@@ -3,8 +3,6 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_mlkit_language_id/google_mlkit_language_id.dart';
-import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/track.dart';
@@ -25,7 +23,9 @@ class LyricsTranslationService {
           Platform.environment['HI_HAT_DEEPL_API_KEY'] ??
           const String.fromEnvironment('DEEPL_API_KEY');
 
-  static const _prefix = 'lyrics_translation_en_v1_';
+  // v2 invalidates responses cached by the short-lived no-key fallback. Those
+  // responses could contain provider error text instead of translated lyrics.
+  static const _prefix = 'lyrics_translation_en_v2_';
   static const _deeplApiUrl = 'https://api-free.deepl.com/v2/translate';
 
   final Dio _dio;
@@ -46,105 +46,57 @@ class LyricsTranslationService {
       );
     }
 
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      return _translateOnDesktop(lyrics, preferences, key);
-    }
-
-    final identifier = LanguageIdentifier(confidenceThreshold: 0.45);
-    String languageCode;
-    try {
-      languageCode = await identifier.identifyLanguage(lyrics);
-    } finally {
-      identifier.close();
-    }
-    if (languageCode == 'en') return null;
-    final sourceLanguage = BCP47Code.fromRawValue(languageCode);
-    if (sourceLanguage == null || languageCode == 'und') {
-      throw const LyricsTranslationException(
-        'The language in these lyrics could not be identified.',
-      );
-    }
-
-    final manager = OnDeviceTranslatorModelManager();
-    await manager.downloadModel(sourceLanguage.bcpCode, isWifiRequired: false);
-    await manager.downloadModel(
-      TranslateLanguage.english.bcpCode,
-      isWifiRequired: false,
-    );
-    final translator = OnDeviceTranslator(
-      sourceLanguage: sourceLanguage,
-      targetLanguage: TranslateLanguage.english,
-    );
-    try {
-      final translated = await translator.translateText(lyrics);
-      final result = TranslatedLyrics(
-        text: translated.trim(),
-        sourceLanguage: languageCode,
-      );
-      await preferences.setString(
-        key,
-        jsonEncode({'text': result.text, 'language': result.sourceLanguage}),
-      );
-      return result;
-    } catch (_) {
-      throw const LyricsTranslationException(
-        'The English translation could not be created. Check your connection and try again.',
-      );
-    } finally {
-      translator.close();
-    }
+    return _translateOnline(lyrics, preferences, key);
   }
 
-  Future<TranslatedLyrics> _translateOnDesktop(
+  Future<TranslatedLyrics> _translateOnline(
     String lyrics,
     SharedPreferences preferences,
     String cacheKey,
   ) async {
     if (_deeplApiKey.trim().isEmpty) {
       throw const LyricsTranslationException(
-        'PC translation needs a DeepL API key in the Hi Hat launcher configuration.',
+        'This installer is missing its shared DeepL configuration. Install a '
+        'verified Hi Hat release.',
       );
     }
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        _deeplApiUrl,
-        options: Options(
-          headers: {
-            'Authorization': 'DeepL-Auth-Key $_deeplApiKey',
-            'Content-Type': 'application/json',
-          },
-        ),
-        data: {
-          'text': [lyrics],
-          'target_lang': 'EN-US',
-          'preserve_formatting': true,
+    final result = await _translateWithDeepL(lyrics);
+    await preferences.setString(
+      cacheKey,
+      jsonEncode({'text': result.text, 'language': result.sourceLanguage}),
+    );
+    return result;
+  }
+
+  Future<TranslatedLyrics> _translateWithDeepL(String lyrics) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      _deeplApiUrl,
+      options: Options(
+        headers: {
+          'Authorization': 'DeepL-Auth-Key $_deeplApiKey',
+          'Content-Type': 'application/json',
         },
-      );
-      final data = response.data;
-      final translations = data?['translations'];
-      if (translations is! List || translations.isEmpty) {
-        throw const LyricsTranslationException(
-          'The translation provider returned an empty response.',
-        );
-      }
-      final translation = Map<String, dynamic>.from(translations.first as Map);
-      final result = TranslatedLyrics(
-        text: translation['text'].toString().trim(),
-        sourceLanguage: (translation['detected_source_language'] ?? 'unknown')
-            .toString()
-            .toLowerCase(),
-      );
-      await preferences.setString(
-        cacheKey,
-        jsonEncode({'text': result.text, 'language': result.sourceLanguage}),
-      );
-      return result;
-    } on DioException catch (error) {
-      final unauthorized = error.response?.statusCode == 403;
-      throw LyricsTranslationException(
-        unauthorized ? 'DeepL rejected the configured API key.' : 'Online translation is unavailable. Check your connection and try again.',
+      ),
+      data: {
+        'text': [lyrics],
+        'target_lang': 'EN-US',
+        'preserve_formatting': true,
+      },
+    );
+    final data = response.data;
+    final translations = data?['translations'];
+    if (translations is! List || translations.isEmpty) {
+      throw const LyricsTranslationException(
+        'The translation provider returned an empty response.',
       );
     }
+    final translation = Map<String, dynamic>.from(translations.first as Map);
+    return TranslatedLyrics(
+      text: translation['text'].toString().trim(),
+      sourceLanguage: (translation['detected_source_language'] ?? 'unknown')
+          .toString()
+          .toLowerCase(),
+    );
   }
 }
 

@@ -99,4 +99,22 @@ void main() {
     expect(restarted?.progress, 0.02);
     expect(restarted?.isMinimized, isTrue);
   });
+
+  test('late callbacks cannot move active download progress backwards', () {
+    final service = DownloadService();
+    const track = TrackSummary(
+      id: 'monochrome:progress',
+      provider: 'monochrome',
+      providerTrackId: 'progress',
+      title: 'Progress Track',
+      artist: 'Artist',
+      quality: AudioQuality(),
+    );
+
+    service.begin(track.id, track: track);
+    service.update(track.id, 'DOWNLOADING', progress: 0.72);
+    service.update(track.id, 'PREPARING_AUDIO', progress: 0.31);
+
+    expect(service.state.forTrack(track.id)?.progress, 0.72);
+  });
 }

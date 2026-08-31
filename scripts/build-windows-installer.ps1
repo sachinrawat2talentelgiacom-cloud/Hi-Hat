@@ -4,7 +4,19 @@ param()
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $clientRoot = Join-Path $projectRoot 'client'
+$localConfig = Join-Path $projectRoot 'backend\.env'
 $flutter = Join-Path $env:USERPROFILE '.puro\envs\hi_hat\flutter\bin\flutter.bat'
+
+if ([string]::IsNullOrWhiteSpace($env:HI_HAT_DEEPL_API_KEY) -and (Test-Path -LiteralPath $localConfig)) {
+    foreach ($line in Get-Content -LiteralPath $localConfig) {
+        if ($line -match '^HI_HAT_DEEPL_API_KEY=(.+)$') {
+            $env:HI_HAT_DEEPL_API_KEY = $Matches[1].Trim()
+        }
+    }
+}
+if ([string]::IsNullOrWhiteSpace($env:HI_HAT_DEEPL_API_KEY)) {
+    throw 'DEEPL_KEY_MISSING: Add HI_HAT_DEEPL_API_KEY to backend/.env before building. No installer was created.'
+}
 
 if (-not (Test-Path -LiteralPath $flutter)) {
     $flutterCommand = Get-Command flutter.bat -ErrorAction SilentlyContinue
@@ -25,7 +37,7 @@ Push-Location $clientRoot
 try {
     & $flutter pub get
     if ($LASTEXITCODE -ne 0) { throw 'Flutter dependency setup failed.' }
-    & $flutter build windows --release
+    & $flutter build windows --release --dart-define="DEEPL_API_KEY=$env:HI_HAT_DEEPL_API_KEY"
     if ($LASTEXITCODE -ne 0) { throw 'Flutter Windows release build failed.' }
 } finally {
     Pop-Location

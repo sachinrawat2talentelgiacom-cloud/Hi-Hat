@@ -8,14 +8,16 @@ import 'package:hi_hat/services/artist_preferences_store.dart';
 import 'package:hi_hat/services/discovery_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-TrackSummary track(String id, {String artist = 'Artist'}) => TrackSummary(
-  id: 'monochrome:$id',
-  provider: 'monochrome',
-  providerTrackId: id,
-  title: 'Track $id',
-  artist: artist,
-  quality: const AudioQuality(),
-);
+TrackSummary track(String id, {String artist = 'Artist', String? genre}) =>
+    TrackSummary(
+      id: 'monochrome:$id',
+      provider: 'monochrome',
+      providerTrackId: id,
+      title: 'Track $id',
+      artist: artist,
+      genre: genre,
+      quality: const AudioQuality(),
+    );
 
 void main() {
   setUp(() {
@@ -61,11 +63,66 @@ void main() {
     );
   });
 
+  test('feed removes the same song returned under different provider IDs', () {
+    const first = TrackSummary(
+      id: 'monochrome:one',
+      provider: 'monochrome',
+      providerTrackId: 'one',
+      title: 'Same Song',
+      artist: 'Artist feat. Guest',
+      quality: AudioQuality(),
+    );
+    const duplicate = TrackSummary(
+      id: 'monochrome:two',
+      provider: 'monochrome',
+      providerTrackId: 'two',
+      title: ' same  song ',
+      artist: 'Artist, Guest',
+      quality: AudioQuality(),
+    );
+
+    final result = DiscoveryService.dedupeAndShuffle(const [
+      first,
+      duplicate,
+    ], random: Random(1));
+
+    expect(result, hasLength(1));
+  });
+
   test('feed composition respects the discovery track cap', () {
-    final input = List.generate(70, (index) => track('$index'));
+    final input = List.generate(400, (index) => track('$index'));
     final result = DiscoveryService.dedupeAndShuffle(input, random: Random(1));
 
     expect(result, hasLength(DiscoveryService.maximumTracks));
+  });
+
+  test('feed searches enough sources to populate a large homepage', () async {
+    final requestedLimits = <int>[];
+    final service = DiscoveryService((query, {int limit = 30}) async {
+      requestedLimits.add(limit);
+      return List.generate(
+        limit,
+        (index) => track('$query-$index', artist: query),
+      );
+    }, random: Random(3));
+
+    final feed = await service.buildFeed(
+      artists: const [],
+      genres: const {
+        'Pop',
+        'Rock',
+        'Jazz',
+        'Dance',
+        'Ambient',
+        'Country',
+        'Metal',
+        'Indie',
+      },
+    );
+
+    expect(requestedLimits, hasLength(DiscoveryService.maximumSeedSearches));
+    expect(requestedLimits, everyElement(DiscoveryService.tracksPerSearch));
+    expect(feed, hasLength(DiscoveryService.maximumTracks));
   });
 
   test('artist matching is exact while allowing explicit featured credits', () {
@@ -78,6 +135,29 @@ void main() {
       DiscoveryService.artistMatches('Queens of the Stone Age', 'Queen'),
       isFalse,
     );
+  });
+
+  test('unknown selected artists expand through their catalog genre', () async {
+    final queries = <String>[];
+    final service = DiscoveryService((query, {int limit = 30}) async {
+      queries.add(query);
+      if (query == 'JMSN') {
+        return [track('jmsn', artist: 'JMSN', genre: 'Alternative R&B')];
+      }
+      if (query == 'alternative r&b') {
+        return [track('related', artist: 'Related Artist')];
+      }
+      return const [];
+    }, random: Random(4));
+
+    final feed = await service.buildFeed(
+      artists: const ['JMSN'],
+      genres: const {},
+    );
+
+    expect(queries, containsAll(['JMSN', 'alternative r&b']));
+    expect(feed.map((item) => item.providerTrackId), contains('related'));
+    expect(queries, isNot(contains('popular music')));
   });
 
   test(

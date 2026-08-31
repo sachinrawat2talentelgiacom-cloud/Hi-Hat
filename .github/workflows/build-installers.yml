@@ -42,8 +42,15 @@ jobs:
       - name: Restore packages
         run: flutter pub get
 
+      - name: Require shared DeepL configuration
+        env:
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+        run: test -n "$DEEPL_API_KEY" || (echo "::error::DEEPL_API_KEY repository secret is missing" && exit 1)
+
       - name: Build release APK
-        run: flutter build apk --release
+        env:
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+        run: flutter build apk --release --dart-define="DEEPL_API_KEY=$DEEPL_API_KEY"
 
       - name: Give APK a friendly name
         run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Hi-Hat-Android.apk
@@ -84,10 +91,22 @@ jobs:
       - name: Restore packages
         run: flutter pub get
 
+      - name: Require shared DeepL configuration
+        shell: pwsh
+        env:
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:DEEPL_API_KEY)) {
+            Write-Output "::error::DEEPL_API_KEY repository secret is missing"
+            exit 1
+          }
+
       - name: Build Windows release
         shell: pwsh
+        env:
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
         run: |
-          & flutter build windows --release 2>&1 | Tee-Object -FilePath windows-build.log
+          & flutter build windows --release --dart-define="DEEPL_API_KEY=$env:DEEPL_API_KEY" 2>&1 | Tee-Object -FilePath windows-build.log
           $buildExit = $LASTEXITCODE
           if ($buildExit -ne 0) {
             $errorTail = (Get-Content windows-build.log -Tail 40) -join "`n"

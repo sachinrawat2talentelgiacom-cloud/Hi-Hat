@@ -8,6 +8,7 @@
 __pycache__/
 *.py[cod]
 build/
+dist/
 .test-temp/
 logs/
 .dotnet-install.ps1

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../core/scroll_behavior.dart';
 import '../../models/album.dart';
 import '../../models/track.dart';
 import '../../services/audio_engine.dart';
@@ -18,6 +19,7 @@ class AlbumScreen extends ConsumerStatefulWidget {
 
 class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   late final Future<AlbumSummary> details;
+  final scrollController = SmoothScrollController(debugLabel: 'album');
 
   @override
   void initState() {
@@ -25,6 +27,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     details = ref
         .read(providerSearchServiceProvider)
         .albumDetails(widget.album);
+  }
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -48,6 +56,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               album.tracks.any((t) => t.id == playback.track?.id);
 
           return CustomScrollView(
+            controller: scrollController,
             slivers: [
               // Hero Banner matching screenshot
               SliverPadding(
