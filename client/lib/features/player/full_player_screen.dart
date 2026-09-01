@@ -296,9 +296,12 @@ class _MobilePlayerStage extends StatelessWidget {
     final top = math.max(safeTop, 64.0);
     final shortLandscape = maxHeight < 520 && maxWidth > maxHeight;
     final horizontal = maxWidth < 360 ? 14.0 : 20.0;
+    final heightBasedArtSize = maxHeight >= 700
+        ? 340.0
+        : (maxHeight * .33).clamp(168.0, 240.0);
     final portraitArtSize = math.min(
       maxWidth - (horizontal * 2),
-      (maxHeight * .40).clamp(204.0, 340.0),
+      heightBasedArtSize,
     );
     final player = KeyedSubtree(
       key: const ValueKey('mobile-player-stage'),
@@ -306,7 +309,15 @@ class _MobilePlayerStage extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(horizontal, top + 4, horizontal, 10),
         child: shortLandscape
             ? _MobileLandscapePlayer(state: state)
-            : _MobilePortraitPlayer(state: state, artSize: portraitArtSize),
+            : SizedBox(
+                key: const ValueKey('mobile-player-centering-area'),
+                child: Center(
+                  child: _MobilePortraitPlayer(
+                    state: state,
+                    artSize: portraitArtSize,
+                  ),
+                ),
+              ),
       ),
     );
     return ScrollConfiguration(
@@ -317,10 +328,7 @@ class _MobilePlayerStage extends StatelessWidget {
         physics: const ClampingScrollPhysics(),
         child: Column(
           children: [
-            if (shortLandscape)
-              SizedBox(height: maxHeight, child: player)
-            else
-              player,
+            SizedBox(height: maxHeight, child: player),
             Container(
               key: lyricsKey,
               constraints: BoxConstraints(minHeight: math.max(520, maxHeight)),
@@ -358,6 +366,8 @@ class _MobilePortraitPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
+    key: const ValueKey('mobile-player-composition'),
+    mainAxisSize: MainAxisSize.min,
     children: [
       _MobileArtwork(state: state, size: artSize),
       const SizedBox(height: 12),

@@ -24,7 +24,7 @@ Use the existing Calibrated Silence system: a clean chamber surface, album art a
 4. Keep Queue as a focused Material bottom sheet. Place the immersive desktop-style Lyrics reader in a second, vertically connected mobile viewport below the player; the app-bar action scrolls to it without opening or dragging a sheet.
 5. Use a 64dp compact app bar and a flat tonal background. Do not blur a full-screen album image on compact devices.
 6. Shorten active lyric auto-follow to 220ms with the existing ease-out curve and preserve the immediate reduced-motion path.
-7. Pack portrait artwork and controls by content instead of reserving a full viewport, keeping a 16–40dp header-to-art interval and a 64–100dp player-to-lyrics transition at 320x800 while retaining adaptive artwork sizing on short phones.
+7. Treat portrait playback and lyrics as two consecutive full-height viewports. Center the artwork-and-controls composition in the safe area below the app bar with equal space above and below; begin Lyrics only after the first viewport ends.
 
 ## Verification
 
