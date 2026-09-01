@@ -292,9 +292,23 @@ class _MobilePlayerStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final top = MediaQuery.paddingOf(context).top + 64;
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final top = math.max(safeTop, 64.0);
     final shortLandscape = maxHeight < 520 && maxWidth > maxHeight;
     final horizontal = maxWidth < 360 ? 14.0 : 20.0;
+    final portraitArtSize = math.min(
+      maxWidth - (horizontal * 2),
+      (maxHeight * .40).clamp(204.0, 340.0),
+    );
+    final player = KeyedSubtree(
+      key: const ValueKey('mobile-player-stage'),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(horizontal, top + 4, horizontal, 10),
+        child: shortLandscape
+            ? _MobileLandscapePlayer(state: state)
+            : _MobilePortraitPlayer(state: state, artSize: portraitArtSize),
+      ),
+    );
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context)
           .copyWith(physics: const ClampingScrollPhysics(), scrollbars: false),
@@ -303,29 +317,16 @@ class _MobilePlayerStage extends StatelessWidget {
         physics: const ClampingScrollPhysics(),
         child: Column(
           children: [
-            SizedBox(
-              height: maxHeight,
-              child: KeyedSubtree(
-                key: const ValueKey('mobile-player-stage'),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    horizontal,
-                    top + (shortLandscape ? 4 : 10),
-                    horizontal,
-                    10,
-                  ),
-                  child: shortLandscape
-                      ? _MobileLandscapePlayer(state: state)
-                      : _MobilePortraitPlayer(state: state),
-                ),
-              ),
-            ),
+            if (shortLandscape)
+              SizedBox(height: maxHeight, child: player)
+            else
+              player,
             Container(
               key: lyricsKey,
               constraints: BoxConstraints(minHeight: math.max(520, maxHeight)),
               padding: EdgeInsets.fromLTRB(
                 horizontal,
-                MediaQuery.paddingOf(context).top + 78,
+                math.max(safeTop, 64.0) + 16,
                 horizontal,
                 16,
               ),
@@ -350,26 +351,15 @@ class _MobilePlayerStage extends StatelessWidget {
 }
 
 class _MobilePortraitPlayer extends StatelessWidget {
-  const _MobilePortraitPlayer({required this.state});
+  const _MobilePortraitPlayer({required this.state, required this.artSize});
 
   final PlaybackState state;
+  final double artSize;
 
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      Expanded(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final size = math.min(
-              340.0,
-              math.min(constraints.maxWidth, constraints.maxHeight),
-            );
-            return Center(
-              child: _MobileArtwork(state: state, size: size),
-            );
-          },
-        ),
-      ),
+      _MobileArtwork(state: state, size: artSize),
       const SizedBox(height: 12),
       _MobileTrackIdentity(state: state),
       const SizedBox(height: 16),

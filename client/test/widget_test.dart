@@ -88,12 +88,18 @@ void main() {
       final lyrics = tester.widget<LyricsView>(find.byType(LyricsView));
       expect(lyrics.immersive, isTrue);
       expect(lyrics.scrollable, isTrue);
-      expect(
-        tester
-            .getTopLeft(find.byKey(const ValueKey('mobile-lyrics-section')))
-            .dy,
-        greaterThanOrEqualTo(800),
+      final headerRect = tester.getRect(find.text('Now Playing'));
+      final artworkRect = tester.getRect(
+        find.byKey(const ValueKey('full-player-artwork')),
       );
+      final statusRect = tester.getRect(
+        find.byKey(const ValueKey('mobile-player-status')),
+      );
+      final lyricsRect = tester.getRect(
+        find.byKey(const ValueKey('mobile-lyrics-section')),
+      );
+      expect(artworkRect.top - headerRect.bottom, inInclusiveRange(16, 40));
+      expect(lyricsRect.top - statusRect.bottom, inInclusiveRange(64, 100));
       await tester.drag(
         find.byKey(const ValueKey('mobile-player-scroll')),
         const Offset(0, -700),
