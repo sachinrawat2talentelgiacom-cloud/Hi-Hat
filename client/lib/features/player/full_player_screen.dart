@@ -21,6 +21,7 @@ class FullPlayerScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(audioEngineProvider);
     final track = state.track;
+    final compact = MediaQuery.sizeOf(context).width < 860;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.space): () =>
@@ -36,17 +37,26 @@ class FullPlayerScreen extends ConsumerWidget {
           backgroundColor: HiHatColors.chamberSunken,
           extendBodyBehindAppBar: true,
           appBar: AppBar(
-            toolbarHeight: 128,
+            toolbarHeight: compact ? 64 : 128,
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
-            title: const Text(
+            title: Text(
               'Now Playing',
-              style: TextStyle(fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: compact ? 16 : null,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             actions: [
+              if (compact)
+                IconButton(
+                  tooltip: 'Lyrics',
+                  onPressed: track == null ? null : () => showLyrics(context),
+                  icon: const Icon(Icons.lyrics_outlined),
+                ),
               Padding(
-                padding: const EdgeInsets.only(right: 15),
+                padding: EdgeInsets.only(right: compact ? 4 : 15),
                 child: IconButton(
                   tooltip: 'Queue',
                   onPressed: () => showQueue(context),
@@ -60,29 +70,39 @@ class FullPlayerScreen extends ConsumerWidget {
               : Stack(
                   fit: StackFit.expand,
                   children: [
-                    TrackArtwork(
-                      artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
-                      highRes: true,
-                      iconSize: 120,
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 38, sigmaY: 38),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              HiHatColors.chamberSunken.withValues(alpha: .54),
-                              HiHatColors.chamberSunken.withValues(alpha: .70),
-                              HiHatColors.chamberSunken.withValues(alpha: .90),
-                            ],
-                            stops: const [0, .62, 1],
+                    if (compact)
+                      const ColoredBox(color: HiHatColors.chamberSunken)
+                    else ...[
+                      TrackArtwork(
+                        artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
+                        highRes: true,
+                        iconSize: 120,
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 38, sigmaY: 38),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                HiHatColors.chamberSunken.withValues(
+                                  alpha: .54,
+                                ),
+                                HiHatColors.chamberSunken.withValues(
+                                  alpha: .70,
+                                ),
+                                HiHatColors.chamberSunken.withValues(
+                                  alpha: .90,
+                                ),
+                              ],
+                              stops: const [0, .62, 1],
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                     SafeArea(
                       top: false,
                       child: LayoutBuilder(
@@ -116,6 +136,13 @@ class _PlayerStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final track = state.track!;
     final wide = maxWidth >= 860;
+    if (!wide) {
+      return _MobilePlayerStage(
+        state: state,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+      );
+    }
     final horizontalPadding = wide ? 24.0 : 16.0;
     final deckHeight = wide ? 134.0 : 188.0;
     final referenceScale = (maxWidth / 1920).clamp(.72, 1.0).toDouble();
@@ -223,6 +250,423 @@ class _PlayerStage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MobilePlayerStage extends StatelessWidget {
+  const _MobilePlayerStage({
+    required this.state,
+    required this.maxWidth,
+    required this.maxHeight,
+  });
+
+  final PlaybackState state;
+  final double maxWidth;
+  final double maxHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top + 64;
+    final shortLandscape = maxHeight < 520 && maxWidth > maxHeight;
+    final horizontal = maxWidth < 360 ? 14.0 : 20.0;
+    return KeyedSubtree(
+      key: const ValueKey('mobile-player-stage'),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          horizontal,
+          top + (shortLandscape ? 4 : 10),
+          horizontal,
+          10,
+        ),
+        child: shortLandscape
+            ? _MobileLandscapePlayer(state: state)
+            : _MobilePortraitPlayer(state: state),
+      ),
+    );
+  }
+}
+
+class _MobilePortraitPlayer extends StatelessWidget {
+  const _MobilePortraitPlayer({required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Expanded(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = math.min(
+              340.0,
+              math.min(constraints.maxWidth, constraints.maxHeight),
+            );
+            return Center(
+              child: _MobileArtwork(state: state, size: size),
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 12),
+      _MobileTrackIdentity(state: state),
+      const SizedBox(height: 16),
+      _MobileProgress(state: state),
+      const SizedBox(height: 10),
+      _MobileTransport(state: state),
+      const SizedBox(height: 10),
+      _MobilePlaybackStatus(state: state),
+    ],
+  );
+}
+
+class _MobileLandscapePlayer extends StatelessWidget {
+  const _MobileLandscapePlayer({required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        flex: 5,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = math.min(constraints.maxWidth, constraints.maxHeight);
+            return Center(
+              child: _MobileArtwork(state: state, size: size),
+            );
+          },
+        ),
+      ),
+      const SizedBox(width: 20),
+      Expanded(
+        flex: 7,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _MobileTrackIdentity(state: state, compact: true),
+              const SizedBox(height: 8),
+              _MobileProgress(state: state),
+              const SizedBox(height: 4),
+              _MobileTransport(state: state, compact: true),
+              const SizedBox(height: 4),
+              _MobilePlaybackStatus(state: state),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _MobileArtwork extends StatelessWidget {
+  const _MobileArtwork({required this.state, required this.size});
+
+  final PlaybackState state;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final track = state.track!;
+    return SizedBox.square(
+      dimension: size,
+      child: TrackArtwork(
+        key: const ValueKey('full-player-artwork'),
+        artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
+        highRes: true,
+        iconSize: math.min(72, size * .24),
+        borderRadius: BorderRadius.circular(14),
+      ),
+    );
+  }
+}
+
+class _MobileTrackIdentity extends StatelessWidget {
+  const _MobileTrackIdentity({required this.state, this.compact = false});
+
+  final PlaybackState state;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final track = state.track!;
+    return Semantics(
+      container: true,
+      label: '${track.displayTitle} by ${track.artist}',
+      child: Column(
+        children: [
+          Text(
+            track.displayTitle,
+            maxLines: compact ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style:
+                (compact
+                        ? Theme.of(context).textTheme.titleLarge
+                        : Theme.of(context).textTheme.headlineMedium)
+                    ?.copyWith(
+                      color: HiHatColors.mineral,
+                      fontWeight: FontWeight.w600,
+                      height: 1.15,
+                    ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            track.artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge
+                ?.copyWith(color: HiHatColors.trace),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileProgress extends ConsumerWidget {
+  const _MobileProgress({required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final max = state.duration.inMilliseconds.toDouble();
+    final value = max <= 0
+        ? 0.0
+        : state.position.inMilliseconds.clamp(0, max.toInt()).toDouble();
+    return Column(
+      children: [
+        SizedBox(
+          height: 28,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+              inactiveTrackColor: HiHatColors.trace.withValues(alpha: .34),
+            ),
+            child: Slider(
+              label: 'Playback position',
+              value: value,
+              max: max <= 0 ? 1 : max,
+              onChanged: max <= 0
+                  ? null
+                  : (next) => ref
+                        .read(audioEngineProvider.notifier)
+                        .seek(Duration(milliseconds: next.round())),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_time(state.position), style: _mobileTimeStyle(context)),
+              Text(_time(state.duration), style: _mobileTimeStyle(context)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  TextStyle? _mobileTimeStyle(BuildContext context) => Theme.of(context)
+      .textTheme
+      .labelMedium
+      ?.copyWith(
+        color: HiHatColors.trace,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      );
+}
+
+class _MobileTransport extends ConsumerWidget {
+  const _MobileTransport({required this.state, this.compact = false});
+
+  final PlaybackState state;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final engine = ref.read(audioEngineProvider.notifier);
+    final primarySize = compact ? 60.0 : 72.0;
+    return SizedBox(
+      key: const ValueKey('mobile-player-transport'),
+      height: primarySize,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _MobileTransportButton(
+            tooltip: 'Previous',
+            icon: Icons.skip_previous_rounded,
+            onPressed: engine.previous,
+          ),
+          _MobileTransportButton(
+            tooltip: 'Rewind 10 seconds',
+            icon: Icons.replay_10_rounded,
+            onPressed: () => engine.seekRelative(const Duration(seconds: -10)),
+          ),
+          Tooltip(
+            message: state.playing ? 'Pause' : 'Play',
+            child: Semantics(
+              button: true,
+              label: state.playing ? 'Pause' : 'Play',
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  backgroundColor: HiHatColors.signal,
+                  foregroundColor: HiHatColors.onSignal,
+                  shape: const CircleBorder(),
+                  minimumSize: Size.square(primarySize),
+                ),
+                onPressed: engine.toggle,
+                child: Icon(
+                  state.playing
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  size: compact ? 32 : 38,
+                ),
+              ),
+            ),
+          ),
+          _MobileTransportButton(
+            tooltip: 'Forward 10 seconds',
+            icon: Icons.forward_10_rounded,
+            onPressed: () => engine.seekRelative(const Duration(seconds: 10)),
+          ),
+          _MobileTransportButton(
+            tooltip: 'Next',
+            icon: Icons.skip_next_rounded,
+            onPressed: engine.next,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileTransportButton extends StatelessWidget {
+  const _MobileTransportButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tooltip,
+    style: IconButton.styleFrom(
+      minimumSize: const Size.square(48),
+      foregroundColor: HiHatColors.mineral,
+    ),
+    onPressed: onPressed,
+    icon: Icon(icon, size: 27),
+  );
+}
+
+class _MobilePlaybackStatus extends ConsumerWidget {
+  const _MobilePlaybackStatus({required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final engine = ref.read(audioEngineProvider.notifier);
+    final textScale = MediaQuery.textScalerOf(context).scale(12) / 12;
+    return SizedBox(
+      key: const ValueKey('mobile-player-status'),
+      height: 52 + ((textScale - 1).clamp(0, 1) * 20),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: state.shuffle ? 'Turn shuffle off' : 'Turn shuffle on',
+            isSelected: state.shuffle,
+            onPressed: engine.toggleShuffle,
+            icon: Icon(
+              Icons.shuffle_rounded,
+              color: state.shuffle ? HiHatColors.signal : HiHatColors.trace,
+            ),
+          ),
+          Expanded(
+            child: Semantics(
+              label:
+                  'Verified source ${_mobileQuality(state)}. Output ${state.outputLabel}',
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.verified_rounded,
+                        size: 14,
+                        color: HiHatColors.signal,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          _mobileQuality(state),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: HiHatColors.mineral),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    state.outputLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelSmall
+                        ?.copyWith(color: HiHatColors.trace),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Repeat ${state.repeatMode.name}',
+            isSelected: state.repeatMode != PlaybackRepeatMode.off,
+            onPressed: engine.cycleRepeat,
+            icon: Icon(
+              state.repeatMode == PlaybackRepeatMode.one
+                  ? Icons.repeat_one_rounded
+                  : Icons.repeat_rounded,
+              color: state.repeatMode != PlaybackRepeatMode.off
+                  ? HiHatColors.signal
+                  : HiHatColors.trace,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _mobileQuality(PlaybackState state) {
+  final quality = state.track!.quality;
+  final parts = <String>[
+    if (quality.codec != null && quality.codec!.isNotEmpty)
+      quality.codec!.toUpperCase()
+    else if (quality.lossless)
+      'Lossless'
+    else
+      'Local file',
+    if (quality.bitDepth != null && quality.bitDepth! > 0)
+      '${quality.bitDepth}-bit',
+    if (quality.sampleRate != null && quality.sampleRate! > 0)
+      '${(quality.sampleRate! / 1000).toStringAsFixed(quality.sampleRate! % 1000 == 0 ? 0 : 1)} kHz',
+  ];
+  return parts.join(' / ');
 }
 
 class _ControlDeck extends StatelessWidget {
@@ -654,7 +1098,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
         alignment: .28,
         duration: reduceMotion
             ? Duration.zero
-            : const Duration(milliseconds: 420),
+            : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
       );
     });
@@ -988,6 +1432,20 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
 final _showEnglishLyricsProvider = StateProvider.family<bool, String>(
   (ref, trackId) => false,
+);
+
+Future<void> showLyrics(BuildContext context) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  showDragHandle: true,
+  useSafeArea: true,
+  builder: (_) => const FractionallySizedBox(
+    heightFactor: .92,
+    child: Padding(
+      padding: EdgeInsets.fromLTRB(20, 4, 8, 0),
+      child: LyricsView(scrollable: true),
+    ),
+  ),
 );
 
 Future<void> showQueue(BuildContext context) => showModalBottomSheet<void>(

@@ -362,77 +362,94 @@ class MiniPlayer extends ConsumerWidget {
         : 0.0;
 
     if (!isDesktop) {
-      // Mobile / Compact Mini Player Layout
       return Material(
-        color: const Color(0xFF0C0D11),
+        color: HiHatColors.chamberRaised,
         child: InkWell(
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const FullPlayerScreen()),
           ),
-          child: Container(
-            height: 68,
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Color(0xFF1E202B), width: 1),
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
+          child: SizedBox(
+            height: 72,
+            child: Stack(
               children: [
-                TrackArtwork(
-                  artworkUrl: track.artworkUrl,
-                  size: 44,
-                  borderRadius: BorderRadius.circular(6),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: LinearProgressIndicator(
+                    value: acquiring ? transfer.progress : progress,
+                    minHeight: 2,
+                    backgroundColor: HiHatColors.trace.withValues(alpha: .18),
+                    color: acquiring ? HiHatColors.cue : HiHatColors.signal,
+                  ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 6),
+                  child: Row(
                     children: [
-                      Text(
-                        track.displayTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                      TrackArtwork(
+                        artworkUrl: track.artworkUrl,
+                        size: 48,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              track.displayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: HiHatColors.mineral,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              acquiring
+                                  ? '${_PlayerPanelState._phase(transfer.phase)} ${_PlayerPanelState._percent(transfer.progress)}'
+                                  : track.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: HiHatColors.trace,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        acquiring
-                            ? '${_PlayerPanelState._phase(transfer.phase)} ${_PlayerPanelState._percent(transfer.progress)}'
-                            : track.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
+                      IconButton.filled(
+                        tooltip: playback.playing ? 'Pause' : 'Play',
+                        onPressed: track.isLocal
+                            ? () => ref
+                                  .read(audioEngineProvider.notifier)
+                                  .toggle()
+                            : null,
+                        style: IconButton.styleFrom(
+                          backgroundColor: HiHatColors.signal,
+                          foregroundColor: HiHatColors.onSignal,
+                        ),
+                        icon: Icon(
+                          playback.playing
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          size: 25,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Next',
+                        onPressed: ref.read(audioEngineProvider.notifier).next,
+                        icon: const Icon(
+                          Icons.skip_next_rounded,
                           color: HiHatColors.trace,
                         ),
                       ),
                     ],
-                  ),
-                ),
-                IconButton(
-                  iconSize: 30,
-                  onPressed: track.isLocal
-                      ? () => ref.read(audioEngineProvider.notifier).toggle()
-                      : null,
-                  icon: Icon(
-                    playback.playing
-                        ? Icons.pause_circle_filled_rounded
-                        : Icons.play_circle_fill_rounded,
-                    color: HiHatColors.coral,
-                  ),
-                ),
-                IconButton(
-                  iconSize: 24,
-                  onPressed: ref.read(audioEngineProvider.notifier).next,
-                  icon: const Icon(
-                    Icons.skip_next_rounded,
-                    color: HiHatColors.trace,
                   ),
                 ),
               ],

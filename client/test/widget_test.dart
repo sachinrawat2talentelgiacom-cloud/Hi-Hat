@@ -84,6 +84,11 @@ void main() {
       expect(find.byType(FullPlayerScreen), findsOneWidget);
       expect(find.text('Now Playing'), findsOneWidget);
       expect(find.byType(TrackArtwork), findsWidgets);
+      expect(find.byKey(const ValueKey('mobile-player-stage')), findsOneWidget);
+      expect(find.byType(LyricsView), findsNothing);
+      await tester.tap(find.byTooltip('Lyrics'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(
         find.descendant(
           of: find.byType(LyricsView),
@@ -92,8 +97,162 @@ void main() {
         findsOneWidget,
       );
       expect(engine.state.playing, isTrue);
+      expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('mobile player keeps controls reachable on a short phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const track = TrackSummary(
+      id: 'local:short-phone',
+      provider: 'local',
+      providerTrackId: 'short-phone',
+      title: 'A Long Track Title That Still Belongs on a Small Phone',
+      artist: 'A Long Artist Name',
+      localPath: 'short-phone.flac',
+      quality: AudioQuality(
+        codec: 'FLAC',
+        lossless: true,
+        bitDepth: 24,
+        sampleRate: 96000,
+      ),
+    );
+    final engine = TestAudioEngine(
+      const PlaybackState(
+        track: track,
+        playing: true,
+        position: Duration(seconds: 45),
+        duration: Duration(minutes: 3, seconds: 30),
+        outputLabel: 'System mixed output',
+        queue: [track],
+        currentIndex: 0,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [audioEngineProvider.overrideWith((ref) => engine)],
+        child: MaterialApp(
+          theme: HiHatTheme.dark,
+          home: const FullPlayerScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('mobile-player-stage')), findsOneWidget);
+    expect(find.text('FLAC / 24-bit / 96 kHz'), findsOneWidget);
+    expect(find.text('System mixed output'), findsOneWidget);
+    for (final tooltip in [
+      'Previous',
+      'Rewind 10 seconds',
+      'Forward 10 seconds',
+      'Next',
+    ]) {
+      final rect = tester.getRect(find.byTooltip(tooltip));
+      expect(rect.width, greaterThanOrEqualTo(48));
+      expect(rect.height, greaterThanOrEqualTo(48));
+      expect(rect.left, greaterThanOrEqualTo(0));
+      expect(rect.right, lessThanOrEqualTo(320));
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mobile player remains usable with large accessibility text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    const track = TrackSummary(
+      id: 'local:large-text',
+      provider: 'local',
+      providerTrackId: 'large-text',
+      title: 'A Deliberately Long Listening Session Title',
+      artist: 'An Artist With A Long Name',
+      localPath: 'large-text.flac',
+    );
+    final engine = TestAudioEngine(
+      const PlaybackState(
+        track: track,
+        duration: Duration(minutes: 4, seconds: 18),
+        queue: [track],
+        currentIndex: 0,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [audioEngineProvider.overrideWith((ref) => engine)],
+        child: MaterialApp(
+          theme: HiHatTheme.dark,
+          home: const FullPlayerScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('mobile-player-stage')), findsOneWidget);
+    expect(find.byTooltip('Play'), findsOneWidget);
+    expect(
+      tester.getRect(find.byTooltip('Play')).bottom,
+      lessThanOrEqualTo(800),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mobile player adapts to short landscape', (tester) async {
+    tester.view.physicalSize = const Size(640, 360);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const track = TrackSummary(
+      id: 'local:landscape',
+      provider: 'local',
+      providerTrackId: 'landscape',
+      title: 'Landscape Listening',
+      artist: 'Hi Hat Artist',
+      localPath: 'landscape.flac',
+    );
+    final engine = TestAudioEngine(
+      const PlaybackState(
+        track: track,
+        playing: false,
+        duration: Duration(minutes: 4),
+        queue: [track],
+        currentIndex: 0,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [audioEngineProvider.overrideWith((ref) => engine)],
+        child: MaterialApp(
+          theme: HiHatTheme.dark,
+          home: const FullPlayerScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final artwork = tester.getRect(
+      find.byKey(const ValueKey('full-player-artwork')),
+    );
+    final transport = tester.getRect(
+      find.byKey(const ValueKey('mobile-player-transport')),
+    );
+    expect(artwork.right, lessThan(transport.left));
+    expect(transport.bottom, lessThanOrEqualTo(360));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('full-screen player lays out the immersive desktop stage', (
     tester,
