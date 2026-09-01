@@ -85,10 +85,41 @@ void main() {
       expect(find.text('Now Playing'), findsOneWidget);
       expect(find.byType(TrackArtwork), findsWidgets);
       expect(find.byKey(const ValueKey('mobile-player-stage')), findsOneWidget);
-      expect(find.byType(LyricsView), findsNothing);
+      final lyrics = tester.widget<LyricsView>(find.byType(LyricsView));
+      expect(lyrics.immersive, isTrue);
+      expect(lyrics.scrollable, isTrue);
+      expect(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('mobile-lyrics-section')))
+            .dy,
+        greaterThanOrEqualTo(800),
+      );
+      await tester.drag(
+        find.byKey(const ValueKey('mobile-player-scroll')),
+        const Offset(0, -700),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('mobile-lyrics-section')))
+            .dy,
+        lessThan(300),
+      );
+      await tester.drag(
+        find.byKey(const ValueKey('mobile-player-scroll')),
+        const Offset(0, 700),
+      );
+      await tester.pump();
       await tester.tap(find.byTooltip('Lyrics'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('mobile-lyrics-section')))
+            .dy,
+        lessThan(180),
+      );
       expect(
         find.descendant(
           of: find.byType(LyricsView),
@@ -96,6 +127,10 @@ void main() {
         ),
         findsOneWidget,
       );
+      final pageScroll = tester.widget<SingleChildScrollView>(
+        find.byKey(const ValueKey('mobile-player-scroll')),
+      );
+      expect(pageScroll.physics, isA<ClampingScrollPhysics>());
       expect(engine.state.playing, isTrue);
       expect(tester.takeException(), isNull);
     },

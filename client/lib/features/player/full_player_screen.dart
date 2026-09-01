@@ -14,11 +14,32 @@ import '../../services/track_playback_coordinator.dart';
 import '../../widgets/track_artwork.dart';
 import 'song_actions.dart';
 
-class FullPlayerScreen extends ConsumerWidget {
+class FullPlayerScreen extends ConsumerStatefulWidget {
   const FullPlayerScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FullPlayerScreen> createState() => _FullPlayerScreenState();
+}
+
+class _FullPlayerScreenState extends ConsumerState<FullPlayerScreen> {
+  final mobileLyricsKey = GlobalKey();
+
+  void scrollToMobileLyrics() {
+    final lyricsContext = mobileLyricsKey.currentContext;
+    if (lyricsContext == null) return;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    Scrollable.ensureVisible(
+      lyricsContext,
+      alignment: 0,
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(audioEngineProvider);
     final track = state.track;
     final compact = MediaQuery.sizeOf(context).width < 860;
@@ -52,7 +73,7 @@ class FullPlayerScreen extends ConsumerWidget {
               if (compact)
                 IconButton(
                   tooltip: 'Lyrics',
-                  onPressed: track == null ? null : () => showLyrics(context),
+                  onPressed: track == null ? null : scrollToMobileLyrics,
                   icon: const Icon(Icons.lyrics_outlined),
                 ),
               Padding(
@@ -110,6 +131,7 @@ class FullPlayerScreen extends ConsumerWidget {
                           state: state,
                           maxWidth: constraints.maxWidth,
                           maxHeight: constraints.maxHeight,
+                          mobileLyricsKey: mobileLyricsKey,
                         ),
                       ),
                     ),
@@ -126,11 +148,13 @@ class _PlayerStage extends StatelessWidget {
     required this.state,
     required this.maxWidth,
     required this.maxHeight,
+    required this.mobileLyricsKey,
   });
 
   final PlaybackState state;
   final double maxWidth;
   final double maxHeight;
+  final GlobalKey mobileLyricsKey;
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +165,7 @@ class _PlayerStage extends StatelessWidget {
         state: state,
         maxWidth: maxWidth,
         maxHeight: maxHeight,
+        lyricsKey: mobileLyricsKey,
       );
     }
     final horizontalPadding = wide ? 24.0 : 16.0;
@@ -257,29 +282,68 @@ class _MobilePlayerStage extends StatelessWidget {
     required this.state,
     required this.maxWidth,
     required this.maxHeight,
+    required this.lyricsKey,
   });
 
   final PlaybackState state;
   final double maxWidth;
   final double maxHeight;
+  final GlobalKey lyricsKey;
 
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top + 64;
     final shortLandscape = maxHeight < 520 && maxWidth > maxHeight;
     final horizontal = maxWidth < 360 ? 14.0 : 20.0;
-    return KeyedSubtree(
-      key: const ValueKey('mobile-player-stage'),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          horizontal,
-          top + (shortLandscape ? 4 : 10),
-          horizontal,
-          10,
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context)
+          .copyWith(physics: const ClampingScrollPhysics(), scrollbars: false),
+      child: SingleChildScrollView(
+        key: const ValueKey('mobile-player-scroll'),
+        physics: const ClampingScrollPhysics(),
+        child: Column(
+          children: [
+            SizedBox(
+              height: maxHeight,
+              child: KeyedSubtree(
+                key: const ValueKey('mobile-player-stage'),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontal,
+                    top + (shortLandscape ? 4 : 10),
+                    horizontal,
+                    10,
+                  ),
+                  child: shortLandscape
+                      ? _MobileLandscapePlayer(state: state)
+                      : _MobilePortraitPlayer(state: state),
+                ),
+              ),
+            ),
+            Container(
+              key: lyricsKey,
+              constraints: BoxConstraints(minHeight: math.max(520, maxHeight)),
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                MediaQuery.paddingOf(context).top + 78,
+                horizontal,
+                16,
+              ),
+              color: HiHatColors.chamberSunken,
+              child: SizedBox(
+                key: const ValueKey('mobile-lyrics-section'),
+                height: math.max(420, maxHeight - 110),
+                child: LyricsView(
+                  key: ValueKey(
+                    'mobile-lyrics-${state.track!.providerTrackId}',
+                  ),
+                  scrollable: true,
+                  immersive: true,
+                ),
+              ),
+            ),
+          ],
         ),
-        child: shortLandscape
-            ? _MobileLandscapePlayer(state: state)
-            : _MobilePortraitPlayer(state: state),
       ),
     );
   }
@@ -1093,14 +1157,27 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       if (lineContext == null) return;
       final reduceMotion =
           MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-      Scrollable.ensureVisible(
-        lineContext,
-        alignment: .28,
-        duration: reduceMotion
-            ? Duration.zero
-            : const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
+      final duration = reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 220);
+      final renderObject = lineContext.findRenderObject();
+      if (widget.scrollable &&
+          scrollController.hasClients &&
+          renderObject != null) {
+        scrollController.position.ensureVisible(
+          renderObject,
+          alignment: .28,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        );
+      } else {
+        Scrollable.ensureVisible(
+          lineContext,
+          alignment: .28,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        );
+      }
     });
   }
 
@@ -1405,6 +1482,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 child: SingleChildScrollView(
                   controller: scrollController,
                   primary: false,
+                  physics: const ClampingScrollPhysics(),
                   child: lyricsBody,
                 ),
               ),
@@ -1424,6 +1502,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       child: SingleChildScrollView(
         controller: scrollController,
         primary: false,
+        physics: const ClampingScrollPhysics(),
         child: content,
       ),
     );
@@ -1432,20 +1511,6 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
 final _showEnglishLyricsProvider = StateProvider.family<bool, String>(
   (ref, trackId) => false,
-);
-
-Future<void> showLyrics(BuildContext context) => showModalBottomSheet<void>(
-  context: context,
-  isScrollControlled: true,
-  showDragHandle: true,
-  useSafeArea: true,
-  builder: (_) => const FractionallySizedBox(
-    heightFactor: .92,
-    child: Padding(
-      padding: EdgeInsets.fromLTRB(20, 4, 8, 0),
-      child: LyricsView(scrollable: true),
-    ),
-  ),
 );
 
 Future<void> showQueue(BuildContext context) => showModalBottomSheet<void>(
