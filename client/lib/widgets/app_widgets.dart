@@ -133,7 +133,133 @@ class HeroBanner extends ConsumerWidget {
     final colors = Theme.of(context).colorScheme;
     final width = MediaQuery.sizeOf(context).width;
     final isCompact = width < 720;
-    final artSize = isCompact ? 130.0 : 200.0;
+    final isPhone = width < 520;
+    final artSize = isPhone ? 112.0 : (isCompact ? 130.0 : 200.0);
+
+    final artwork = TrackArtwork(
+      artworkUrl: artworkUrl,
+      width: artSize,
+      height: artSize,
+      highRes: true,
+      borderRadius: BorderRadius.circular(isPhone ? 12 : 16),
+      iconSize: isPhone ? 48 : 64,
+    );
+
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                title,
+                maxLines: isPhone ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: isPhone ? 20 : (isCompact ? 22 : 32),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            if (onEdit != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                color: HiHatColors.trace,
+                tooltip: 'Edit details / preferences',
+                onPressed: onEdit,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          maxLines: isPhone ? 2 : 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+            color: HiHatColors.trace,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 16,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (songCountText != null)
+              _HeroMetadata(
+                icon: Icons.play_circle_outline_rounded,
+                label: songCountText!,
+              ),
+            if (durationText != null)
+              _HeroMetadata(
+                icon: Icons.access_time_rounded,
+                label: durationText!,
+              ),
+            if (qualityBadge != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: HiHatColors.coral.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: HiHatColors.coral.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Text(
+                  qualityBadge!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: HiHatColors.coral,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (onPlayAll != null)
+              FilledButton.icon(
+                onPressed: onPlayAll,
+                icon: Icon(
+                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  size: 20,
+                ),
+                label: Text(isPlaying ? 'Pause' : 'Play all'),
+              ),
+            if (onShuffle != null)
+              OutlinedButton.icon(
+                onPressed: onShuffle,
+                icon: const Icon(Icons.shuffle_rounded, size: 18),
+                label: const Text('Shuffle'),
+              ),
+            if (onReload != null)
+              OutlinedButton.icon(
+                onPressed: onReload,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Reload feed'),
+              ),
+            if (onMore != null)
+              TextButton.icon(
+                onPressed: onMore,
+                icon: const Icon(Icons.more_horiz_rounded, size: 18),
+                label: const Text('More'),
+              ),
+          ],
+        ),
+      ],
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -145,254 +271,82 @@ class HeroBanner extends ConsumerWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Artwork
-              TrackArtwork(
-                artworkUrl: artworkUrl,
-                width: artSize,
-                height: artSize,
-                highRes: true,
-                borderRadius: BorderRadius.circular(16),
-                iconSize: 64,
-              ),
-              SizedBox(width: isCompact ? 16 : 28),
-              // Meta info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: isCompact ? 22 : 32,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.6,
-                              color: Colors.white,
-                            ),
-                          ),
+          if (isPhone)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: artwork),
+                const SizedBox(height: 18),
+                details,
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                artwork,
+                SizedBox(width: isCompact ? 16 : 28),
+                Expanded(child: details),
+                // Giant Coral Circular Play Button on right (Desktop)
+                if (!isCompact && onPlayAll != null) ...[
+                  const SizedBox(width: 20),
+                  Material(
+                    color: HiHatColors.coral,
+                    shape: const CircleBorder(),
+                    elevation: 6,
+                    shadowColor: HiHatColors.coral.withValues(alpha: 0.4),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onPlayAll,
+                      child: Container(
+                        width: 60,
+                        height: 60,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: Colors.black,
+                          size: 32,
                         ),
-                        if (onEdit != null) ...[
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            color: HiHatColors.trace,
-                            tooltip: 'Edit details / preferences',
-                            onPressed: onEdit,
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w500,
-                        color: HiHatColors.trace,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Stats / Meta row
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if (songCountText != null)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.play_circle_outline_rounded,
-                                size: 16,
-                                color: HiHatColors.trace,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                songCountText!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: HiHatColors.trace,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        if (durationText != null)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.access_time_rounded,
-                                size: 15,
-                                color: HiHatColors.trace,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                durationText!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: HiHatColors.trace,
-                                  fontWeight: FontWeight.w500,
-                                  fontFeatures: [FontFeature.tabularFigures()],
-                                ),
-                              ),
-                            ],
-                          ),
-                        if (qualityBadge != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: HiHatColors.coral.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: HiHatColors.coral.withValues(alpha: 0.4),
-                              ),
-                            ),
-                            child: Text(
-                              qualityBadge!,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: HiHatColors.coral,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    // Action Buttons Row
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if (onPlayAll != null)
-                          FilledButton.icon(
-                            onPressed: onPlayAll,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: HiHatColors.coral,
-                              foregroundColor: HiHatColors.onSignal,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 10,
-                              ),
-                              shape: const StadiumBorder(),
-                            ),
-                            icon: Icon(
-                              isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded,
-                              size: 20,
-                            ),
-                            label: Text(isPlaying ? 'Pause' : 'Play all'),
-                          ),
-                        if (onShuffle != null)
-                          OutlinedButton.icon(
-                            onPressed: onShuffle,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: BorderSide(
-                                color: HiHatColors.coral.withValues(alpha: 0.6),
-                              ),
-                              backgroundColor: HiHatColors.coral.withValues(
-                                alpha: 0.1,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 10,
-                              ),
-                              shape: const StadiumBorder(),
-                            ),
-                            icon: const Icon(Icons.shuffle_rounded, size: 18),
-                            label: const Text('Shuffle'),
-                          ),
-                        if (onReload != null)
-                          OutlinedButton.icon(
-                            onPressed: onReload,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: Color(0xFF2E3244)),
-                              backgroundColor: const Color(0xFF1B1D28),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                              shape: const StadiumBorder(),
-                            ),
-                            icon: const Icon(
-                              Icons.refresh_rounded,
-                              size: 18,
-                              color: HiHatColors.coral,
-                            ),
-                            label: const Text('Reload feed'),
-                          ),
-                        if (onMore != null)
-                          TextButton.icon(
-                            onPressed: onMore,
-                            style: TextButton.styleFrom(
-                              foregroundColor: HiHatColors.trace,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.more_horiz_rounded,
-                              size: 18,
-                            ),
-                            label: const Text('More'),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Giant Coral Circular Play Button on right (Desktop)
-              if (!isCompact && onPlayAll != null) ...[
-                const SizedBox(width: 20),
-                Material(
-                  color: HiHatColors.coral,
-                  shape: const CircleBorder(),
-                  elevation: 6,
-                  shadowColor: HiHatColors.coral.withValues(alpha: 0.4),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: onPlayAll,
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.black,
-                        size: 32,
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
+}
+
+class _HeroMetadata extends StatelessWidget {
+  const _HeroMetadata({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 16, color: HiHatColors.trace),
+      const SizedBox(width: 5),
+      Flexible(
+        child: Text(
+          label,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 13,
+            color: HiHatColors.trace,
+            fontWeight: FontWeight.w500,
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 /// Table column header for track lists

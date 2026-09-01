@@ -65,8 +65,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final search = ref.watch(searchControllerProvider);
     final hasQuery = controller.text.trim().isNotEmpty;
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= 980;
-    final horizontal = MediaQuery.sizeOf(context).width < 700 ? 16.0 : 28.0;
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= 980;
+    final horizontal = width < 700 ? 16.0 : 28.0;
+    final searchFontSize = width < 380 ? 21.0 : (isDesktop ? 34.0 : 27.0);
 
     return CustomScrollView(
       controller: scrollController,
@@ -91,7 +93,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     focusNode: focusNode,
                     autofocus: isDesktop,
                     style: TextStyle(
-                      fontSize: isDesktop ? 34 : 27,
+                      fontSize: searchFontSize,
                       fontWeight: FontWeight.w400,
                       letterSpacing: -0.7,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -99,8 +101,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
                       hintText: 'Find a track, artist, or album',
-                      hintStyle: const TextStyle(
-                        fontSize: 27,
+                      hintStyle: TextStyle(
+                        fontSize: searchFontSize,
                         fontWeight: FontWeight.w300,
                         color: HiHatColors.trace,
                       ),

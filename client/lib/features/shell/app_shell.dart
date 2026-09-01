@@ -221,15 +221,21 @@ class _CommandHeader extends StatelessWidget {
           const HiHatLockup(compact: true),
           const SizedBox(width: 12),
         ],
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!compact) const HiHatEyebrow('Listening instrument'),
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-          ],
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!compact) const HiHatEyebrow('Listening instrument'),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ],
+          ),
         ),
-        const Spacer(),
         DownloadsButton(compact: compact),
         const SizedBox(width: 8),
         IconButton(

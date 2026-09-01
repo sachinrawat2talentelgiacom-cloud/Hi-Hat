@@ -126,13 +126,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         12,
                       ),
                       sliver: SliverToBoxAdapter(
-                        child: Row(
+                        child: Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          runSpacing: 10,
                           children: [
                             Text(
                               'Ready locally',
                               style: Theme.of(context).textTheme.headlineMedium,
                             ),
-                            const Spacer(),
                             const HiHatStatusChip(
                               label: 'Available offline',
                               icon: Icons.offline_pin_outlined,
@@ -278,8 +280,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             SliverPadding(
               padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 16),
               sliver: SliverToBoxAdapter(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  runSpacing: 10,
                   children: [
                     const Text(
                       'From your preferences',
@@ -410,6 +414,7 @@ class _ListeningStage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final track = playback.track;
     final scheme = Theme.of(context).colorScheme;
+    final compact = MediaQuery.sizeOf(context).width < 480;
     if (track == null) {
       return Container(
         width: double.infinity,
@@ -446,7 +451,7 @@ class _ListeningStage extends ConsumerWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(compact ? 14 : 18),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         border: Border.all(color: scheme.outlineVariant),
@@ -456,10 +461,10 @@ class _ListeningStage extends ConsumerWidget {
         children: [
           TrackArtwork(
             artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
-            size: 112,
+            size: compact ? 76 : 112,
             borderRadius: BorderRadius.circular(10),
           ),
-          const SizedBox(width: 20),
+          SizedBox(width: compact ? 14 : 20),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,9 +478,11 @@ class _ListeningStage extends ConsumerWidget {
                 const SizedBox(height: 7),
                 Text(
                   track.displayTitle,
-                  maxLines: 2,
+                  maxLines: compact ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.headlineMedium,
+                  style: compact
+                      ? Theme.of(context).textTheme.titleMedium
+                      : Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -490,16 +497,17 @@ class _ListeningStage extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: compact ? 8 : 16),
           FilledButton(
             onPressed: () => ref.read(audioEngineProvider.notifier).toggle(),
             style: FilledButton.styleFrom(
+              padding: EdgeInsets.zero,
               shape: const CircleBorder(),
-              minimumSize: const Size.square(64),
+              minimumSize: Size.square(compact ? 52 : 64),
             ),
             child: Icon(
               playback.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              size: 32,
+              size: compact ? 27 : 32,
             ),
           ),
         ],

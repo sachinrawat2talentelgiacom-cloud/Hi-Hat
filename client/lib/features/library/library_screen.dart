@@ -48,6 +48,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final playlists = ref.watch(playlistProvider);
     final width = MediaQuery.sizeOf(context).width;
     final horizontal = width < 700 ? 16.0 : 28.0;
+    final isPhone = width < 520;
 
     return CustomScrollView(
       controller: scrollController,
@@ -60,40 +61,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               children: [
                 const HiHatEyebrow('Local archive'),
                 const SizedBox(height: 8),
-                Row(
+                Flex(
+                  direction: isPhone ? Axis.vertical : Axis.horizontal,
+                  crossAxisAlignment: isPhone
+                      ? CrossAxisAlignment.start
+                      : CrossAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Owned here',
-                            style: Theme.of(context).textTheme.displayMedium,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Verified files that stay available without the server.',
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(color: HiHatColors.trace),
-                          ),
-                        ],
-                      ),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: () => _import(context, ref),
-                      icon: const Icon(Icons.audio_file_outlined),
-                      label: const Text('Import FLAC'),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'Scan music folder',
-                      onPressed: scanning ? null : _scanFolder,
-                      icon: scanning
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.sync_rounded),
+                    if (isPhone)
+                      const _LibraryHeading()
+                    else
+                      const Expanded(child: _LibraryHeading()),
+                    SizedBox(width: isPhone ? 0 : 16, height: isPhone ? 18 : 0),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilledButton.tonalIcon(
+                          onPressed: () => _import(context, ref),
+                          icon: const Icon(Icons.audio_file_outlined),
+                          label: const Text('Import FLAC'),
+                        ),
+                        IconButton.outlined(
+                          tooltip: 'Scan music folder',
+                          onPressed: scanning ? null : _scanFolder,
+                          icon: scanning
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.sync_rounded),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -338,6 +338,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (mounted) setState(() => scanning = false);
     }
   }
+}
+
+class _LibraryHeading extends StatelessWidget {
+  const _LibraryHeading();
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('Owned here', style: Theme.of(context).textTheme.displayMedium),
+      const SizedBox(height: 6),
+      Text(
+        'Verified files that stay available without the server.',
+        style: Theme.of(context).textTheme.bodyLarge
+            ?.copyWith(color: HiHatColors.trace),
+      ),
+    ],
+  );
 }
 
 class _ArchiveReading extends StatelessWidget {
