@@ -45,6 +45,7 @@ dependencies:
   media_kit_libs_audio: ^1.0.7
   crypto: ^3.0.7
   shared_preferences: ^2.5.5
+  romanize: ^0.0.3
   path: ^1.9.1
   # The 6.1.5 Windows plugin crashes in WinRT composition cleanup on current
   # Windows 11. The official 6.2 beta line contains the Windows lifecycle fixes.
@@ -76,6 +77,11 @@ flutter:
   uses-material-design: true
 
   fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+        - asset: assets/fonts/Inter-Italic-Variable.ttf
+          style: italic
     - family: Poppins
       fonts:
         - asset: assets/fonts/Poppins-Light.ttf

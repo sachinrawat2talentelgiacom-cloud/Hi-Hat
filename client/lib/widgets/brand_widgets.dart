@@ -55,7 +55,7 @@ class HiHatEyebrow extends StatelessWidget {
   Widget build(BuildContext context) => Text(
     label.toUpperCase(),
     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-      fontFamily: 'Poppins',
+      fontFamily: 'Inter',
       color: color ?? HiHatColors.signal,
       fontWeight: FontWeight.w800,
       letterSpacing: 1.7,

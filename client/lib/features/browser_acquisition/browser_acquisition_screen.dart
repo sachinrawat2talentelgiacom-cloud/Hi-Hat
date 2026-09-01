@@ -1277,7 +1277,7 @@ class _BrowserAcquisitionScreenState
                             );
                           }
                         },
-                  icon: const Icon(Icons.bug_report_outlined, size: 20),
+                  icon: const Icon(Icons.bug_report_rounded, size: 20),
                 ),
               if (debugVisible && phase == BrowserAcquisitionPhase.ready)
                 TextButton(
@@ -1412,7 +1412,7 @@ class _BrowserDebugStrip extends StatelessWidget {
         liveRegion: true,
         child: ListTile(
           dense: true,
-          leading: const Icon(Icons.bug_report_outlined),
+          leading: const Icon(Icons.bug_report_rounded),
           title: Text('Debug trace · ${entries.length} events'),
           subtitle: Text(
             entries.isEmpty ? 'Preparing log file…' : entries.last,
@@ -1437,7 +1437,7 @@ class _BrowserDebugStrip extends StatelessWidget {
                       );
                     }
                   },
-            icon: const Icon(Icons.copy_all_outlined),
+            icon: const Icon(Icons.copy_all_rounded),
           ),
         ),
       ),
@@ -1473,7 +1473,7 @@ class _AcquisitionStatus extends StatelessWidget {
         children: [
           if (phase == BrowserAcquisitionPhase.failed)
             Icon(
-              Icons.error_outline,
+              Icons.error_rounded,
               color: Theme.of(context).colorScheme.error,
             )
           else
@@ -1492,7 +1492,7 @@ class _AcquisitionStatus extends StatelessWidget {
             const SizedBox(width: 12),
             TextButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(Icons.refresh_rounded),
               label: const Text('Retry'),
             ),
           ],

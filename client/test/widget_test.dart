@@ -9,6 +9,7 @@ import 'package:hi_hat/features/search/search_screen.dart';
 import 'package:hi_hat/models/track.dart';
 import 'package:hi_hat/services/audio_engine.dart';
 import 'package:hi_hat/services/lyrics_service.dart';
+import 'package:hi_hat/services/lyrics_romanization_service.dart';
 import 'package:hi_hat/services/lyrics_translation_service.dart';
 import 'package:hi_hat/widgets/track_artwork.dart';
 import 'package:hi_hat/widgets/brand_widgets.dart';
@@ -82,50 +83,42 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(FullPlayerScreen), findsOneWidget);
-      expect(find.text('Now Playing'), findsOneWidget);
+      expect(find.byKey(const ValueKey('mobile-mode-switch')), findsOneWidget);
+      expect(find.text('Music'), findsOneWidget);
+      expect(find.text('Lyrics'), findsOneWidget);
       expect(find.byType(TrackArtwork), findsWidgets);
       expect(find.byKey(const ValueKey('mobile-player-stage')), findsOneWidget);
-      final lyrics = tester.widget<LyricsView>(find.byType(LyricsView));
-      expect(lyrics.immersive, isTrue);
-      expect(lyrics.scrollable, isTrue);
       final centeringArea = tester.getRect(
         find.byKey(const ValueKey('mobile-player-centering-area')),
       );
       final composition = tester.getRect(
         find.byKey(const ValueKey('mobile-player-composition')),
       );
-      final lyricsRect = tester.getRect(
-        find.byKey(const ValueKey('mobile-lyrics-section')),
-      );
       final topSpace = composition.top - centeringArea.top;
       final bottomSpace = centeringArea.bottom - composition.bottom;
-      expect((topSpace - bottomSpace).abs(), lessThanOrEqualTo(1));
-      expect(lyricsRect.top, greaterThanOrEqualTo(800));
-      await tester.drag(
-        find.byKey(const ValueKey('mobile-player-scroll')),
-        const Offset(0, -700),
-      );
-      await tester.pump();
-      expect(
-        tester
-            .getTopLeft(find.byKey(const ValueKey('mobile-lyrics-section')))
-            .dy,
-        lessThan(300),
-      );
-      await tester.drag(
-        find.byKey(const ValueKey('mobile-player-scroll')),
-        const Offset(0, 700),
-      );
-      await tester.pump();
-      await tester.tap(find.byTooltip('Lyrics'));
+      expect((topSpace - bottomSpace).abs(), lessThanOrEqualTo(10));
+      await tester.tap(find.text('Lyrics'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(BottomSheet), findsNothing);
       expect(
-        tester
-            .getTopLeft(find.byKey(const ValueKey('mobile-lyrics-section')))
-            .dy,
-        lessThan(180),
+        find.byKey(const ValueKey('mobile-lyrics-section')),
+        findsOneWidget,
+      );
+      final lyrics = tester.widget<LyricsView>(find.byType(LyricsView));
+      expect(lyrics.immersive, isTrue);
+      expect(lyrics.scrollable, isTrue);
+      expect(lyrics.showHeader, isFalse);
+      expect(find.byTooltip('Back'), findsOneWidget);
+      expect(find.byTooltip('Queue'), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('mobile-player-transport')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('mobile-player-status')),
+        findsOneWidget,
       );
       expect(
         find.descendant(
@@ -134,10 +127,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      final pageScroll = tester.widget<SingleChildScrollView>(
-        find.byKey(const ValueKey('mobile-player-scroll')),
-      );
-      expect(pageScroll.physics, isA<ClampingScrollPhysics>());
       expect(engine.state.playing, isTrue);
       expect(tester.takeException(), isNull);
     },
@@ -188,8 +177,6 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const ValueKey('mobile-player-stage')), findsOneWidget);
-    expect(find.text('FLAC / 24-bit / 96 kHz'), findsOneWidget);
-    expect(find.text('System mixed output'), findsOneWidget);
     for (final tooltip in [
       'Previous',
       'Rewind 10 seconds',
@@ -202,6 +189,17 @@ void main() {
       expect(rect.left, greaterThanOrEqualTo(0));
       expect(rect.right, lessThanOrEqualTo(320));
     }
+    await tester.tap(find.text('Lyrics'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      find.byKey(const ValueKey('mobile-player-transport')),
+      findsOneWidget,
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('mobile-player-status'))).bottom,
+      lessThanOrEqualTo(568),
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -291,6 +289,14 @@ void main() {
     final transport = tester.getRect(
       find.byKey(const ValueKey('mobile-player-transport')),
     );
+    final artworkWidget = tester.widget<TrackArtwork>(
+      find.byKey(const ValueKey('full-player-artwork')),
+    );
+    expect(artworkWidget.showBorder, isFalse);
+    expect(
+      tester.getRect(find.text('Landscape Listening')).top,
+      greaterThanOrEqualTo(20),
+    );
     expect(artwork.right, lessThan(transport.left));
     expect(transport.bottom, lessThanOrEqualTo(360));
     expect(tester.takeException(), isNull);
@@ -299,7 +305,7 @@ void main() {
   testWidgets('full-screen player lays out the immersive desktop stage', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -344,6 +350,9 @@ void main() {
               sourceLanguage: 'ja',
             ),
           ),
+          romajiLyricsProvider.overrideWith(
+            (ref, track) async => 'Romaji one\nRomaji two\nRomaji three\nRomaji active line\nRomaji blurred line',
+          ),
         ],
         child: MaterialApp(
           theme: HiHatTheme.dark,
@@ -354,12 +363,33 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('Now Playing'), findsOneWidget);
     expect(find.text('Desktop Listening Session'), findsOneWidget);
-    expect(find.text('By Hi Hat Artist'), findsOneWidget);
-    expect(find.text('2:14  /  3:40'), findsOneWidget);
+    expect(find.text('HI HAT ARTIST'), findsOneWidget);
+    expect(find.text('2:14'), findsOneWidget);
+    expect(find.text('3:40'), findsOneWidget);
     expect(find.byType(LyricsView), findsOneWidget);
+    expect(find.byType(TrackArtwork), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('desktop-cover-layer')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('desktop-cover-backdrop-source')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('desktop-blurred-cover')), findsOneWidget);
+    expect(
+      tester.getRect(find.byKey(const ValueKey('desktop-blurred-cover'))),
+      const Rect.fromLTWH(0, 0, 1920, 1080),
+    );
     expect(find.byType(ShaderMask), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('lyrics-leading-space'))).height,
+      greaterThan(150),
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('lyrics-trailing-space')))
+          .height,
+      greaterThan(150),
+    );
     expect(
       find.descendant(
         of: find.byType(LyricsView),
@@ -372,7 +402,7 @@ void main() {
     expect(tester.widget<Text>(find.text('Current lyric')).style?.fontSize, 40);
     expect(
       tester.widget<Text>(find.text('Before')).style?.color?.a,
-      closeTo(.26, .01),
+      closeTo(.30, .01),
     );
     expect(
       tester.widget<Text>(find.text('Later lyric')).style?.fontWeight,
@@ -390,15 +420,34 @@ void main() {
       ),
       findsNothing,
     );
-    expect(artwork.left, closeTo(171, 2));
-    expect(artwork.top, closeTo(126, 2));
-    expect(artwork.width, closeTo(460.8, 2));
-    final controlDeck = tester.getRect(
-      find.byKey(const ValueKey('full-player-control-deck')),
+    expect(artwork.left, 24);
+    expect(artwork.top, 24);
+    expect(artwork.width, 1032);
+    expect(artwork.bottom, 1056);
+    final backButton = tester.getRect(
+      find.byKey(const ValueKey('desktop-back-button')),
     );
-    expect(controlDeck.left, 24);
-    expect(controlDeck.right, 1416);
-    expect(controlDeck.bottom, 875);
+    expect(backButton, const Rect.fromLTWH(40, 40, 56, 56));
+    final languageSwitch = tester.getRect(
+      find.byKey(const ValueKey('lyrics-language-switch')),
+    );
+    expect(languageSwitch, const Rect.fromLTWH(1536, 41, 286, 38));
+    final lyricsRect = tester.getRect(find.byType(LyricsView));
+    final titleRect = tester.getRect(find.text('Desktop Listening Session'));
+    expect(titleRect.top - lyricsRect.bottom, 20);
+    expect(
+      find.byKey(const ValueKey('desktop-player-controls')),
+      findsOneWidget,
+    );
+    expect(find.text('Romaji'), findsOneWidget);
+    await tester.tap(find.text('Romaji'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Romaji active line'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Romaji active line')).style?.fontSize,
+      40,
+    );
     await tester.tap(find.text('English'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
@@ -413,7 +462,7 @@ void main() {
     );
     expect(
       tester.widget<Text>(find.text('English one')).style?.color?.a,
-      closeTo(.26, .01),
+      closeTo(.30, .01),
     );
     expect(tester.takeException(), isNull);
   });
@@ -431,6 +480,13 @@ void main() {
     );
     await tester.pump();
 
+    expect(
+      Theme.of(tester.element(find.byType(SearchScreen)))
+          .textTheme
+          .bodyMedium
+          ?.fontFamily,
+      'Inter',
+    );
     expect(find.text('Find. Verify. Own.'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('Find a track, artist, or album'), findsOneWidget);

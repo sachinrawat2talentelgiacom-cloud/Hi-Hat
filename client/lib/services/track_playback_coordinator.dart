@@ -118,7 +118,7 @@ class TrackPlaybackCoordinator {
     final choose = await showDialog<bool>(
       context: navigator.context,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.folder_outlined),
+        icon: const Icon(Icons.folder_rounded),
         title: const Text('Choose your music folder'),
         content: const Text(
           'Hi Hat will save this and future downloads there, organized by artist and album.',

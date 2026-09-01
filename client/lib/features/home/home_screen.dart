@@ -137,7 +137,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                             const HiHatStatusChip(
                               label: 'Available offline',
-                              icon: Icons.offline_pin_outlined,
+                              icon: Icons.offline_pin_rounded,
                             ),
                           ],
                         ),
@@ -195,7 +195,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           return SliverFillRemaining(
             hasScrollBody: false,
             child: _HomeMessage(
-              icon: Icons.library_music_outlined,
+              icon: Icons.library_music_rounded,
               title: 'Choose artists you return to',
               body: 'Hi Hat will build a local preference-based feed from artist and genre searches.',
               action: FilledButton.icon(
@@ -210,7 +210,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           return SliverFillRemaining(
             hasScrollBody: false,
             child: _HomeMessage(
-              icon: Icons.album_outlined,
+              icon: Icons.album_rounded,
               title: 'No discovery tracks found',
               body: 'Your preferences are saved. Try refreshing or editing your artists and genres.',
               action: FilledButton.tonalIcon(
@@ -251,7 +251,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           Text(
                             'A few paths into the catalog',
                             style: Theme.of(context).textTheme.headlineLarge
-                                ?.copyWith(fontFamily: 'Lora'),
+                                ?.copyWith(fontFamily: 'Inter'),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -707,7 +707,7 @@ class _ArtistPreferenceDialogState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      icon: const Icon(Icons.library_music_outlined),
+      icon: const Icon(Icons.library_music_rounded),
       title: Text(
         widget.firstRun ? 'Tune your home feed' : 'Your discovery mix',
       ),

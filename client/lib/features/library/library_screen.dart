@@ -78,7 +78,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       children: [
                         FilledButton.tonalIcon(
                           onPressed: () => _import(context, ref),
-                          icon: const Icon(Icons.audio_file_outlined),
+                          icon: const Icon(Icons.audio_file_rounded),
                           label: const Text('Import FLAC'),
                         ),
                         IconButton.outlined(
@@ -178,7 +178,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(
-                            Icons.library_music_outlined,
+                            Icons.library_music_rounded,
                             size: 52,
                             color: HiHatColors.coral,
                           ),
@@ -200,7 +200,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           const SizedBox(height: 24),
                           FilledButton.icon(
                             onPressed: () => _import(context, ref),
-                            icon: const Icon(Icons.audio_file_outlined),
+                            icon: const Icon(Icons.audio_file_rounded),
                             label: const Text('Import a FLAC'),
                           ),
                         ],
@@ -415,7 +415,7 @@ class _PlaylistsSection extends ConsumerWidget {
           for (final playlist in state.playlists)
             Card(
               child: ExpansionTile(
-                leading: const Icon(Icons.queue_music),
+                leading: const Icon(Icons.queue_music_rounded),
                 title: Text(playlist.name),
                 subtitle: Text('${playlist.tracks.length} songs'),
                 trailing: PopupMenuButton<String>(

@@ -28,10 +28,10 @@ class _AppShellState extends ConsumerState<AppShell> {
   ];
 
   static const destinations = <_Destination>[
-    _Destination('Listen', Icons.home_outlined, Icons.home_rounded),
+    _Destination('Listen', Icons.home_rounded, Icons.home_rounded),
     _Destination('Find', Icons.search_rounded, Icons.search_rounded),
-    _Destination('Owned', Icons.album_outlined, Icons.album_rounded),
-    _Destination('Setup', Icons.tune_outlined, Icons.tune_rounded),
+    _Destination('Owned', Icons.album_rounded, Icons.album_rounded),
+    _Destination('Setup', Icons.tune_rounded, Icons.tune_rounded),
   ];
 
   @override

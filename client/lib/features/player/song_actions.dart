@@ -46,21 +46,21 @@ class SongActionsButton extends ConsumerWidget {
       const PopupMenuItem(
         value: 'play',
         child: ListTile(
-          leading: Icon(Icons.play_arrow),
+          leading: Icon(Icons.play_arrow_rounded),
           title: Text('Play now'),
         ),
       ),
       const PopupMenuItem(
         value: 'queue',
         child: ListTile(
-          leading: Icon(Icons.queue_music),
+          leading: Icon(Icons.queue_music_rounded),
           title: Text('Add to queue'),
         ),
       ),
       const PopupMenuItem(
         value: 'playlist',
         child: ListTile(
-          leading: Icon(Icons.playlist_add),
+          leading: Icon(Icons.playlist_add_rounded),
           title: Text('Add to playlist'),
         ),
       ),
@@ -68,7 +68,7 @@ class SongActionsButton extends ConsumerWidget {
         const PopupMenuItem(
           value: 'remove',
           child: ListTile(
-            leading: Icon(Icons.remove_circle_outline),
+            leading: Icon(Icons.remove_circle_rounded),
             title: Text('Remove from playlist'),
           ),
         ),
@@ -97,7 +97,7 @@ Future<void> showAddToPlaylist(
                   title: const Text('Add to playlist'),
                   trailing: IconButton(
                     tooltip: 'Create playlist',
-                    icon: const Icon(Icons.add),
+                    icon: const Icon(Icons.add_rounded),
                     onPressed: () async {
                       final name = await _askName(context, 'Create playlist');
                       if (name == null) return;
@@ -126,7 +126,7 @@ Future<void> showAddToPlaylist(
                       children: [
                         for (final playlist in state.playlists)
                           ListTile(
-                            leading: const Icon(Icons.queue_music),
+                            leading: const Icon(Icons.queue_music_rounded),
                             title: Text(playlist.name),
                             subtitle: Text('${playlist.tracks.length} songs'),
                             onTap: () async {

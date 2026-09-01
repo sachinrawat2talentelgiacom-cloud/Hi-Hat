@@ -176,6 +176,7 @@ abstract final class HiHatTheme {
 
   static ThemeData _base(ColorScheme scheme) => ThemeData(
     useMaterial3: true,
+    fontFamily: 'Inter',
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     extensions: const [HiHatTokens.standard],
@@ -184,35 +185,35 @@ abstract final class HiHatTheme {
     splashFactory: InkSparkle.splashFactory,
     textTheme: TextTheme(
       displayLarge: TextStyle(
-        fontFamily: 'Poppins',
+        fontFamily: 'Inter',
         fontSize: 48,
         fontWeight: FontWeight.w700,
         letterSpacing: -1.5,
         color: scheme.onSurface,
       ),
       displayMedium: TextStyle(
-        fontFamily: 'Poppins',
+        fontFamily: 'Inter',
         fontSize: 36,
         fontWeight: FontWeight.w700,
         letterSpacing: -1.0,
         color: scheme.onSurface,
       ),
       headlineLarge: TextStyle(
-        fontFamily: 'Poppins',
+        fontFamily: 'Inter',
         fontSize: 30,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.6,
         color: scheme.onSurface,
       ),
       headlineMedium: TextStyle(
-        fontFamily: 'Poppins',
+        fontFamily: 'Inter',
         fontSize: 24,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.3,
         color: scheme.onSurface,
       ),
       titleLarge: TextStyle(
-        fontFamily: 'Poppins',
+        fontFamily: 'Inter',
         fontSize: 19,
         fontWeight: FontWeight.w600,
         color: scheme.onSurface,

@@ -15,6 +15,7 @@ class TrackArtwork extends StatelessWidget {
     this.iconSize,
     this.highRes = false,
     this.heroTag,
+    this.showBorder = true,
   });
 
   final String? artworkUrl;
@@ -25,6 +26,7 @@ class TrackArtwork extends StatelessWidget {
   final double? iconSize;
   final bool highRes;
   final Object? heroTag;
+  final bool showBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -43,11 +45,13 @@ class TrackArtwork extends StatelessWidget {
       height: effectiveHeight,
       decoration: BoxDecoration(
         borderRadius: effectiveBorderRadius,
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant
-              .withValues(alpha: 0.4),
-          width: 1,
-        ),
+        border: showBorder
+            ? Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant
+                    .withValues(alpha: 0.4),
+                width: 1,
+              )
+            : null,
       ),
       child: ClipRRect(borderRadius: effectiveBorderRadius, child: child),
     );
@@ -138,7 +142,7 @@ class TrackArtwork extends StatelessWidget {
                 ),
               )
             : Icon(
-                Icons.album_outlined,
+                Icons.album_rounded,
                 size: iconSize ?? (size != null ? size! * 0.45 : 28),
                 color: theme.colorScheme.primary.withValues(alpha: 0.4),
               ),

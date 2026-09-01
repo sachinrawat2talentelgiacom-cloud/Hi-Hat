@@ -42,7 +42,7 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.spatial_audio_off_outlined, size: 48),
+              Icon(Icons.spatial_audio_off_rounded, size: 48),
               SizedBox(height: 18),
               Text('The chamber is quiet'),
               SizedBox(height: 8),
@@ -76,7 +76,7 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                     if (current.isLocal)
                       const HiHatStatusChip(
                         label: 'Owned file',
-                        icon: Icons.offline_pin_outlined,
+                        icon: Icons.offline_pin_rounded,
                       ),
                   ],
                 ),
@@ -160,7 +160,7 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                       onPressed: ref
                           .read(audioEngineProvider.notifier)
                           .toggleShuffle,
-                      icon: const Icon(Icons.shuffle),
+                      icon: const Icon(Icons.shuffle_rounded),
                     ),
                     IconButton(
                       tooltip: 'Previous',
@@ -202,8 +202,8 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                           .cycleRepeat,
                       icon: Icon(
                         playback.repeatMode == PlaybackRepeatMode.one
-                            ? Icons.repeat_one
-                            : Icons.repeat,
+                            ? Icons.repeat_one_rounded
+                            : Icons.repeat_rounded,
                       ),
                     ),
                   ],
@@ -216,7 +216,9 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                           .read(audioEngineProvider.notifier)
                           .toggleMute,
                       icon: Icon(
-                        playback.muted ? Icons.volume_off : Icons.volume_up,
+                        playback.muted
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_rounded,
                       ),
                     ),
                     Expanded(
@@ -230,7 +232,7 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                     IconButton(
                       tooltip: 'Queue',
                       onPressed: () => showQueue(context),
-                      icon: const Icon(Icons.queue_music),
+                      icon: const Icon(Icons.queue_music_rounded),
                     ),
                     IconButton(
                       tooltip: 'Open full-screen player',
@@ -239,7 +241,7 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                           builder: (_) => const FullPlayerScreen(),
                         ),
                       ),
-                      icon: const Icon(Icons.open_in_full),
+                      icon: const Icon(Icons.open_in_full_rounded),
                     ),
                     SongActionsButton(track: current),
                   ],
@@ -251,16 +253,16 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                   label: 'SOURCE',
                   value: current.quality.display,
                   icon: current.isLocal
-                      ? Icons.verified_outlined
-                      : Icons.high_quality_outlined,
+                      ? Icons.verified_rounded
+                      : Icons.high_quality_rounded,
                 ),
                 const SizedBox(height: 12),
                 _Reading(
                   label: 'OWNED FILE',
                   value: current.localPath ?? 'Not stored on this device yet',
                   icon: current.isLocal
-                      ? Icons.folder_open_outlined
-                      : Icons.cloud_download_outlined,
+                      ? Icons.folder_open_rounded
+                      : Icons.cloud_download_rounded,
                 ),
                 const SizedBox(height: 12),
                 _Reading(
@@ -272,7 +274,7 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                           'FLAC lossless',
                         ].join('  ·  ')
                       : 'Not archived on this device yet',
-                  icon: Icons.inventory_2_outlined,
+                  icon: Icons.inventory_2_rounded,
                 ),
                 if (transfer != null && _isActivePhase(transfer.phase)) ...[
                   const SizedBox(height: 22),
@@ -293,7 +295,7 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
                   _Reading(
                     label: 'SOURCE UNAVAILABLE',
                     value: transfer.error ?? 'This track could not be downloaded. Try another result.',
-                    icon: Icons.block_outlined,
+                    icon: Icons.block_rounded,
                   ),
                 ],
                 const SizedBox(height: 24),

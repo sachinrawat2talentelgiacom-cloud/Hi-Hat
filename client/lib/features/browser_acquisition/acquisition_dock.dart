@@ -10,7 +10,10 @@ class DownloadsButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeCount = ref.watch(downloadServiceProvider).activeTransfers.length;
+    final activeCount = ref
+        .watch(downloadServiceProvider)
+        .activeTransfers
+        .length;
     return Badge(
       isLabelVisible: activeCount > 0,
       label: Text('$activeCount'),
@@ -22,16 +25,21 @@ class DownloadsButton extends ConsumerWidget {
             )
           : OutlinedButton.icon(
               onPressed: () => _showDownloads(context),
-              icon: Icon(activeCount > 0
-                  ? Icons.downloading_rounded
-                  : Icons.download_done_rounded),
+              icon: Icon(
+                activeCount > 0
+                    ? Icons.downloading_rounded
+                    : Icons.download_done_rounded,
+              ),
               label: const Text('Downloads'),
             ),
     );
   }
 
   void _showDownloads(BuildContext context) {
-    showDialog<void>(context: context, builder: (_) => const _DownloadsDialog());
+    showDialog<void>(
+      context: context,
+      builder: (_) => const _DownloadsDialog(),
+    );
   }
 }
 
@@ -45,32 +53,46 @@ class _DownloadsDialog extends ConsumerWidget {
     final theme = Theme.of(context);
     return AlertDialog(
       titlePadding: const EdgeInsets.fromLTRB(24, 20, 12, 12),
-      title: Row(children: [
-        const Icon(Icons.download_rounded),
-        const SizedBox(width: 10),
-        const Expanded(child: Text('Downloads')),
-        IconButton(
-          tooltip: 'Close downloads',
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.close_rounded),
-        ),
-      ]),
+      title: Row(
+        children: [
+          const Icon(Icons.download_rounded),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Downloads')),
+          IconButton(
+            tooltip: 'Close downloads',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
       contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       content: SizedBox(
         width: 520,
         child: transfers.isEmpty
             ? Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.download_done_rounded,
-                      size: 40, color: theme.colorScheme.outline),
-                  const SizedBox(height: 12),
-                  Text('No downloads yet', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text('Tracks you download will appear here.',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: theme.colorScheme.outline)),
-                ]),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.download_done_rounded,
+                      size: 40,
+                      color: theme.colorScheme.outline,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No downloads yet',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tracks you download will appear here.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
               )
             : ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 520),
@@ -84,14 +106,16 @@ class _DownloadsDialog extends ConsumerWidget {
                       transfer: transfer,
                       onOpen: transfer.isActive
                           ? () {
-                              ref.read(downloadServiceProvider.notifier)
+                              ref
+                                  .read(downloadServiceProvider.notifier)
                                   .focus(transfer.trackId);
                               Navigator.of(context).pop();
                             }
                           : null,
                       onCancel: transfer.isActive
-                          ? () => ref.read(downloadServiceProvider.notifier)
-                              .cancel(transfer.trackId)
+                          ? () => ref
+                                .read(downloadServiceProvider.notifier)
+                                .cancel(transfer.trackId)
                           : null,
                     );
                   },
@@ -132,16 +156,19 @@ class _DownloadListTile extends StatelessWidget {
                 transfer.isCompleted
                     ? Icons.check_circle_rounded
                     : transfer.isFailed
-                        ? Icons.error_rounded
-                        : Icons.cancel_rounded,
+                    ? Icons.error_rounded
+                    : Icons.cancel_rounded,
                 color: transfer.isCompleted
                     ? theme.colorScheme.primary
                     : theme.colorScheme.error,
               ),
       ),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(artist.isEmpty ? status : '$artist · $status',
-          maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        artist.isEmpty ? status : '$artist · $status',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       onTap: onOpen,
       trailing: onCancel == null
           ? null

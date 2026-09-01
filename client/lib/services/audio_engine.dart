@@ -99,7 +99,10 @@ class AudioEngine extends StateNotifier<PlaybackState> {
   }
 
   static const _key = 'playback_state_v2';
-  static const maxQueue = 200, maxHistory = 100, relatedThreshold = 3;
+  static const maxQueue = 200,
+      maxHistory = 100,
+      relatedThreshold = 10,
+      targetRelatedCount = 35;
   final AudioPlayerAdapter _player;
   final ProviderSearchService _search;
   final Random _random;
@@ -392,7 +395,7 @@ class AudioEngine extends StateNotifier<PlaybackState> {
           )
           .toList(growable: false);
       if (candidates.isNotEmpty) {
-        final all = [...state.queue, ...candidates.take(8)];
+        final all = [...state.queue, ...candidates.take(targetRelatedCount)];
         final removed = max(0, all.length - maxQueue);
         state = state.copyWith(
           queue: removed == 0 ? all : all.sublist(removed),
@@ -413,74 +416,180 @@ class AudioEngine extends StateNotifier<PlaybackState> {
   }
 
   Future<List<TrackSummary>> _findRelated(TrackSummary current) async {
-    final artistResults = await _search.search(current.artist, limit: 50);
-    final sameArtist = artistResults
+    final currentArtist = current.artist.trim();
+    if (currentArtist.isEmpty) return const [];
+    final primaryArtist =
+        _creditedArtists(currentArtist).firstOrNull ?? currentArtist;
+    final currentIdentity = _trackIdentity(current);
+
+    // 1. Search for current artist to get metadata and tracks
+    final artistResults = await _safeRelatedSearch(currentArtist, limit: 50);
+    final sameArtistTracks = artistResults
         .where(
           (track) =>
-              DiscoveryService.artistMatches(track.artist, current.artist),
+              DiscoveryService.artistMatches(track.artist, currentArtist) ||
+              DiscoveryService.artistMatches(track.artist, primaryArtist),
         )
         .toList(growable: false);
+
+    // 2. Discover genres from track tags and artist seeds
     final genres = <String>{
       ..._genreTokens(current.genre),
-      ...?DiscoveryService.artistGenreSeeds[_normalize(current.artist)],
-      for (final track in sameArtist) ..._genreTokens(track.genre),
+      ...?DiscoveryService.artistGenreSeeds[_normalize(currentArtist)],
+      ...?DiscoveryService.artistGenreSeeds[_normalize(primaryArtist)],
+      for (final track in sameArtistTracks) ..._genreTokens(track.genre),
+      for (final track in artistResults) ..._genreTokens(track.genre),
     };
+
+    // 3. Discover related / collaborating artists
     final relatedArtists = <String>{};
-    for (final track in sameArtist) {
+    for (final track in sameArtistTracks) {
       for (final artist in _creditedArtists(track.artist)) {
-        if (!DiscoveryService.artistMatches(artist, current.artist)) {
+        if (!DiscoveryService.artistMatches(artist, currentArtist) &&
+            !DiscoveryService.artistMatches(artist, primaryArtist)) {
           relatedArtists.add(artist);
         }
       }
     }
-
-    final scored = <String, ({TrackSummary track, int score})>{};
-    void consider(TrackSummary track, int score) {
-      final identity = _trackIdentity(track);
-      if (identity == _trackIdentity(current) || score <= 0) return;
-      final existing = scored[identity];
-      if (existing == null || score > existing.score) {
-        scored[identity] = (track: track, score: score);
+    for (final artist in _creditedArtists(currentArtist)) {
+      if (!DiscoveryService.artistMatches(artist, currentArtist) &&
+          !DiscoveryService.artistMatches(artist, primaryArtist)) {
+        relatedArtists.add(artist);
       }
     }
 
-    for (final track in sameArtist) {
-      final sameAlbum =
-          _normalize(track.album ?? '').isNotEmpty &&
-          _normalize(track.album ?? '') == _normalize(current.album ?? '');
-      consider(track, 120 + (sameAlbum ? 20 : 0));
-    }
-
-    for (final artist in relatedArtists.take(2)) {
-      final results = await _safeRelatedSearch(artist);
-      for (final track in results.where(
-        (track) => DiscoveryService.artistMatches(track.artist, artist),
-      )) {
-        consider(track, 80);
-      }
-    }
-
-    for (final genre in genres.take(3)) {
-      final results = await _safeRelatedSearch(genre);
-      for (final track in results) {
-        if (_sharesGenre(_genreTokens(track.genre), genres)) {
-          consider(track, 60);
+    // Include other artists from seeds that share the identified genres
+    if (genres.isNotEmpty) {
+      for (final entry in DiscoveryService.artistGenreSeeds.entries) {
+        if (_normalize(entry.key) == _normalize(currentArtist) ||
+            _normalize(entry.key) == _normalize(primaryArtist)) {
+          continue;
+        }
+        if (entry.value.any((g) => genres.contains(_normalize(g)))) {
+          relatedArtists.add(entry.key);
         }
       }
     }
 
-    final ranked = scored.values.toList()
-      ..sort((a, b) {
-        final scoreOrder = b.score.compareTo(a.score);
-        if (scoreOrder != 0) return scoreOrder;
-        return a.track.displayTitle.compareTo(b.track.displayTitle);
-      });
-    return ranked.map((entry) => entry.track).take(24).toList(growable: false);
+    // 4. Parallel searches for related artists and genres
+    final shuffledArtists = relatedArtists.toList()..shuffle(_random);
+    final selectedArtists = shuffledArtists.take(4).toList(growable: false);
+
+    final shuffledGenres = genres.toList()..shuffle(_random);
+    final selectedGenres = shuffledGenres.take(4).toList(growable: false);
+
+    final fallbackSearches = <String>[];
+    if (selectedArtists.isEmpty &&
+        selectedGenres.isEmpty &&
+        sameArtistTracks.isEmpty) {
+      final shuffledFallbacks =
+          DiscoveryService.fallbackSeeds.toList()..shuffle(_random);
+      fallbackSearches.addAll(shuffledFallbacks.take(3));
+    }
+
+    final searchFutures = <Future<List<TrackSummary>>>[
+      for (final artist in selectedArtists)
+        _safeRelatedSearch(artist, limit: 35),
+      for (final genre in selectedGenres)
+        _safeRelatedSearch(genre, limit: 40),
+      for (final seed in fallbackSearches)
+        _safeRelatedSearch(seed, limit: 40),
+    ];
+
+    final searchResultsList = await Future.wait(searchFutures);
+
+    // 5. Categorize candidate tracks
+    final sameArtistPool = <String, TrackSummary>{};
+    for (final track in sameArtistTracks) {
+      final id = _trackIdentity(track);
+      if (id != currentIdentity &&
+          track.providerTrackId != current.providerTrackId) {
+        sameArtistPool.putIfAbsent(id, () => track);
+      }
+    }
+
+    final similarArtistPool = <String, TrackSummary>{};
+    final similarGenrePool = <String, TrackSummary>{};
+    final otherRelatedPool = <String, TrackSummary>{};
+
+    for (final results in searchResultsList) {
+      for (final track in results) {
+        final id = _trackIdentity(track);
+        if (id == currentIdentity ||
+            track.providerTrackId == current.providerTrackId) {
+          continue;
+        }
+        if (sameArtistPool.containsKey(id)) continue;
+
+        final matchesSameArtist =
+            DiscoveryService.artistMatches(track.artist, currentArtist) ||
+            DiscoveryService.artistMatches(track.artist, primaryArtist);
+        if (matchesSameArtist) {
+          sameArtistPool.putIfAbsent(id, () => track);
+          continue;
+        }
+
+        final matchesRelatedArtist = selectedArtists.any(
+          (artist) => DiscoveryService.artistMatches(track.artist, artist),
+        );
+        if (matchesRelatedArtist) {
+          similarArtistPool.putIfAbsent(id, () => track);
+          continue;
+        }
+
+        final trackGenres = _genreTokens(track.genre);
+        final matchesGenre =
+            genres.isNotEmpty && _sharesGenre(trackGenres, genres);
+        if (matchesGenre) {
+          similarGenrePool.putIfAbsent(id, () => track);
+          continue;
+        }
+
+        if (fallbackSearches.isNotEmpty) {
+          otherRelatedPool.putIfAbsent(id, () => track);
+        } else if (trackGenres.isEmpty && selectedGenres.isNotEmpty) {
+          similarGenrePool.putIfAbsent(id, () => track);
+        }
+      }
+    }
+
+    // 6. Combine pools and shuffle in random order
+    final sameArtistList = sameArtistPool.values.toList()..shuffle(_random);
+    final similarArtistList =
+        similarArtistPool.values.toList()..shuffle(_random);
+    final similarGenreList = similarGenrePool.values.toList()..shuffle(_random);
+    final otherList = otherRelatedPool.values.toList()..shuffle(_random);
+
+    final selectedSameArtist = sameArtistList.take(12).toList();
+    final remainingSameArtist = sameArtistList.skip(12).toList();
+
+    final combined = <TrackSummary>[
+      ...selectedSameArtist,
+      ...similarArtistList,
+      ...similarGenreList,
+      ...otherList,
+      ...remainingSameArtist,
+    ];
+
+    final uniqueCandidates = <String, TrackSummary>{};
+    for (final track in combined) {
+      final id = _trackIdentity(track);
+      if (id != currentIdentity &&
+          track.providerTrackId != current.providerTrackId) {
+        uniqueCandidates.putIfAbsent(id, () => track);
+      }
+    }
+
+    final randomized = uniqueCandidates.values.toList()..shuffle(_random);
+    return randomized.take(targetRelatedCount).toList(growable: false);
   }
 
-  Future<List<TrackSummary>> _safeRelatedSearch(String query) async {
+  Future<List<TrackSummary>> _safeRelatedSearch(
+    String query, {
+    int limit = 40,
+  }) async {
     try {
-      return await _search.search(query, limit: 40);
+      return await _search.search(query, limit: limit);
     } catch (_) {
       return const [];
     }

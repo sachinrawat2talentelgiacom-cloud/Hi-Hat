@@ -79,16 +79,24 @@ void main() {
       await engine.playLocal(item('seed'));
       await Future<void>.delayed(const Duration(milliseconds: 30));
       expect(engine.state.relatedAutoplay, isTrue);
-      expect(engine.state.queue.map((track) => track.providerTrackId), [
-        'seed',
-        'related-1',
-        'related-2',
-      ]);
+      expect(engine.state.queue.first.providerTrackId, 'seed');
+      expect(
+        engine.state.queue.map((track) => track.providerTrackId),
+        containsAll(['seed', 'related-1', 'related-2']),
+      );
+      expect(
+        engine.state.queue.map((track) => track.providerTrackId),
+        isNot(contains('stale-unrelated-history')),
+      );
+      expect(
+        engine.state.queue.map((track) => track.providerTrackId),
+        isNot(contains('unrelated')),
+      );
       engine.dispose();
     },
   );
 
-  test('related queue ranks same artist, then matching genre', () async {
+  test('related queue populates matching genre and similar artist in random order', () async {
     final engine = AudioEngine(AffinitySearch(), player: FakePlayer());
     await Future<void>.delayed(Duration.zero);
     await engine.playLocal(
@@ -96,15 +104,46 @@ void main() {
     );
     await Future<void>.delayed(const Duration(milliseconds: 30));
 
-    expect(engine.state.queue.map((track) => track.providerTrackId), [
-      'seed',
-      'same-artist',
-      'same-genre',
-    ]);
+    expect(engine.state.queue.first.providerTrackId, 'seed');
+    expect(
+      engine.state.queue.map((track) => track.providerTrackId),
+      containsAll(['seed', 'same-artist', 'same-genre']),
+    );
     expect(
       engine.state.queue.map((track) => track.providerTrackId),
       isNot(contains('unrelated')),
     );
+    expect(
+      engine.state.queue.map((track) => track.providerTrackId),
+      isNot(contains('wrong-genre')),
+    );
+    engine.dispose();
+  });
+
+  test('queue populates 30-40 similar genre and similar artist songs in random order', () async {
+    final engine = AudioEngine(RichCatalogSearch(), player: FakePlayer());
+    await Future<void>.delayed(Duration.zero);
+    await engine.playLocal(
+      relatedItem('seed-track', artist: 'The Weeknd', genre: 'R&B'),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(engine.state.queue.first.providerTrackId, 'seed-track');
+    // Seed + upcoming 35 songs = 36 tracks total in queue (in the 30-40 range)
+    expect(engine.state.queue.length, inInclusiveRange(31, 41));
+
+    final upcoming = engine.state.queue.skip(1).toList();
+    expect(upcoming.length, inInclusiveRange(30, 40));
+
+    // Verify artists are a mix of same artist, similar artists, and genre matches
+    final artists = upcoming.map((t) => t.artist.toLowerCase()).toSet();
+    expect(artists, contains('the weeknd'));
+    expect(artists.length, greaterThan(1));
+
+    // Verify no duplicates
+    final uniqueIds = upcoming.map((t) => t.providerTrackId).toSet();
+    expect(uniqueIds.length, upcoming.length);
+
     engine.dispose();
   });
 }
@@ -139,6 +178,30 @@ class AffinitySearch extends ProviderSearchService {
       ];
     }
     return [];
+  }
+}
+
+class RichCatalogSearch extends ProviderSearchService {
+  @override
+  Future<List<TrackSummary>> search(String query, {int limit = 40}) async {
+    final clean = query.toLowerCase();
+    if (clean == 'the weeknd') {
+      return List.generate(
+        20,
+        (i) => relatedItem('weeknd-$i', artist: 'The Weeknd', genre: 'R&B'),
+      );
+    }
+    if (clean == 'r&b' || clean == 'pop') {
+      return List.generate(
+        20,
+        (i) => relatedItem('genre-$clean-$i', artist: 'R&B Artist $i', genre: 'R&B'),
+      );
+    }
+    // Return matching tracks for any similar artist query
+    return List.generate(
+      10,
+      (i) => relatedItem('$clean-$i', artist: query, genre: 'R&B'),
+    );
   }
 }
 

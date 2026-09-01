@@ -9,6 +9,7 @@ import '../../services/audio_engine.dart';
 import '../../core/theme.dart';
 import '../../core/scroll_behavior.dart';
 import '../../services/lyrics_service.dart';
+import '../../services/lyrics_romanization_service.dart';
 import '../../services/lyrics_translation_service.dart';
 import '../../services/track_playback_coordinator.dart';
 import '../../widgets/track_artwork.dart';
@@ -22,27 +23,12 @@ class FullPlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _FullPlayerScreenState extends ConsumerState<FullPlayerScreen> {
-  final mobileLyricsKey = GlobalKey();
-
-  void scrollToMobileLyrics() {
-    final lyricsContext = mobileLyricsKey.currentContext;
-    if (lyricsContext == null) return;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    Scrollable.ensureVisible(
-      lyricsContext,
-      alignment: 0,
-      duration: reduceMotion
-          ? Duration.zero
-          : const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-    );
-  }
+  bool mobileLyricsMode = false;
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(audioEngineProvider);
     final track = state.track;
-    final compact = MediaQuery.sizeOf(context).width < 860;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.space): () =>
@@ -55,87 +41,18 @@ class _FullPlayerScreenState extends ConsumerState<FullPlayerScreen> {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-          backgroundColor: HiHatColors.chamberSunken,
-          extendBodyBehindAppBar: true,
-          appBar: AppBar(
-            toolbarHeight: compact ? 64 : 128,
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            title: Text(
-              'Now Playing',
-              style: TextStyle(
-                fontSize: compact ? 16 : null,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            actions: [
-              if (compact)
-                IconButton(
-                  tooltip: 'Lyrics',
-                  onPressed: track == null ? null : scrollToMobileLyrics,
-                  icon: const Icon(Icons.lyrics_outlined),
-                ),
-              Padding(
-                padding: EdgeInsets.only(right: compact ? 4 : 15),
-                child: IconButton(
-                  tooltip: 'Queue',
-                  onPressed: () => showQueue(context),
-                  icon: const Icon(Icons.queue_music),
-                ),
-              ),
-            ],
-          ),
+          backgroundColor: const Color(0xFF020A0F),
           body: track == null
               ? const Center(child: Text('Nothing is playing.'))
-              : Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (compact)
-                      const ColoredBox(color: HiHatColors.chamberSunken)
-                    else ...[
-                      TrackArtwork(
-                        artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
-                        highRes: true,
-                        iconSize: 120,
-                        borderRadius: BorderRadius.zero,
-                      ),
-                      BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 38, sigmaY: 38),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                HiHatColors.chamberSunken.withValues(
-                                  alpha: .54,
-                                ),
-                                HiHatColors.chamberSunken.withValues(
-                                  alpha: .70,
-                                ),
-                                HiHatColors.chamberSunken.withValues(
-                                  alpha: .90,
-                                ),
-                              ],
-                              stops: const [0, .62, 1],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                    SafeArea(
-                      top: false,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) => _PlayerStage(
-                          state: state,
-                          maxWidth: constraints.maxWidth,
-                          maxHeight: constraints.maxHeight,
-                          mobileLyricsKey: mobileLyricsKey,
-                        ),
-                      ),
-                    ),
-                  ],
+              : LayoutBuilder(
+                  builder: (context, constraints) => _PlayerStage(
+                    state: state,
+                    maxWidth: constraints.maxWidth,
+                    maxHeight: constraints.maxHeight,
+                    mobileLyricsMode: mobileLyricsMode,
+                    onMobileModeChanged: (lyrics) =>
+                        setState(() => mobileLyricsMode = lyrics),
+                  ),
                 ),
         ),
       ),
@@ -148,132 +65,29 @@ class _PlayerStage extends StatelessWidget {
     required this.state,
     required this.maxWidth,
     required this.maxHeight,
-    required this.mobileLyricsKey,
+    required this.mobileLyricsMode,
+    required this.onMobileModeChanged,
   });
 
   final PlaybackState state;
   final double maxWidth;
   final double maxHeight;
-  final GlobalKey mobileLyricsKey;
+  final bool mobileLyricsMode;
+  final ValueChanged<bool> onMobileModeChanged;
 
   @override
   Widget build(BuildContext context) {
-    final track = state.track!;
     final wide = maxWidth >= 860;
     if (!wide) {
       return _MobilePlayerStage(
         state: state,
         maxWidth: maxWidth,
         maxHeight: maxHeight,
-        lyricsKey: mobileLyricsKey,
+        lyricsMode: mobileLyricsMode,
+        onModeChanged: onMobileModeChanged,
       );
     }
-    final horizontalPadding = wide ? 24.0 : 16.0;
-    final deckHeight = wide ? 134.0 : 188.0;
-    final referenceScale = (maxWidth / 1920).clamp(.72, 1.0).toDouble();
-    final contentTop = wide
-        ? (maxHeight * .14).clamp(96.0, 152.0).toDouble()
-        : MediaQuery.paddingOf(context).top + kToolbarHeight + 16;
-    final artSize = wide
-        ? math.max(
-            160.0,
-            math.min(
-              620.0,
-              math.min(maxWidth * .32, maxHeight - deckHeight - 150),
-            ),
-          )
-        : math.min(300.0, math.min(maxWidth - 40, maxHeight * .32));
-
-    final artworkAndTitle = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox.square(
-          dimension: artSize,
-          child: TrackArtwork(
-            key: const ValueKey('full-player-artwork'),
-            artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
-            highRes: true,
-            iconSize: 88,
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        SizedBox(height: 28 * referenceScale),
-        Text(
-          track.displayTitle,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 32 * referenceScale,
-          ),
-        ),
-        const SizedBox.shrink(),
-        Text(
-          'By ${track.artist}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: HiHatColors.trace,
-            fontWeight: FontWeight.w400,
-            fontSize: 22 * referenceScale,
-          ),
-        ),
-      ],
-    );
-
-    final content = wide
-        ? Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: maxWidth * .1021),
-              SizedBox(width: artSize, child: artworkAndTitle),
-              SizedBox(width: maxWidth * .0405),
-              Expanded(
-                child: LyricsView(
-                  key: ValueKey(track.providerTrackId),
-                  scrollable: true,
-                  immersive: true,
-                ),
-              ),
-              SizedBox(width: maxWidth * .1021),
-            ],
-          )
-        : SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              children: [
-                artworkAndTitle,
-                const SizedBox(height: 28),
-                SizedBox(
-                  height: math.max(260, maxHeight * .46),
-                  child: LyricsView(
-                    key: ValueKey(track.providerTrackId),
-                    scrollable: true,
-                    immersive: true,
-                  ),
-                ),
-              ],
-            ),
-          );
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        horizontalPadding,
-        contentTop,
-        horizontalPadding,
-        0,
-      ),
-      child: Column(
-        children: [
-          Expanded(child: content),
-          const SizedBox(height: 16),
-          _ControlDeck(state: state, compact: !wide, height: deckHeight),
-          const SizedBox(height: 25),
-        ],
-      ),
-    );
+    return _DesktopReferencePlayer(state: state);
   }
 }
 
@@ -282,78 +96,581 @@ class _MobilePlayerStage extends StatelessWidget {
     required this.state,
     required this.maxWidth,
     required this.maxHeight,
-    required this.lyricsKey,
+    required this.lyricsMode,
+    required this.onModeChanged,
   });
 
   final PlaybackState state;
   final double maxWidth;
   final double maxHeight;
-  final GlobalKey lyricsKey;
+  final bool lyricsMode;
+  final ValueChanged<bool> onModeChanged;
 
   @override
   Widget build(BuildContext context) {
-    final safeTop = MediaQuery.paddingOf(context).top;
-    final top = math.max(safeTop, 64.0);
     final shortLandscape = maxHeight < 520 && maxWidth > maxHeight;
-    final horizontal = maxWidth < 360 ? 14.0 : 20.0;
-    final heightBasedArtSize = maxHeight >= 700
-        ? 340.0
-        : (maxHeight * .33).clamp(168.0, 240.0);
+    if (shortLandscape) {
+      return SafeArea(child: _MobileLandscapePlayer(state: state));
+    }
+    final horizontal = maxWidth < 360 ? 16.0 : 24.0;
+    final heightBasedArtSize = (maxHeight * .455).clamp(210.0, 370.0);
     final portraitArtSize = math.min(
       maxWidth - (horizontal * 2),
       heightBasedArtSize,
     );
-    final player = KeyedSubtree(
+    return Stack(
       key: const ValueKey('mobile-player-stage'),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(horizontal, top + 4, horizontal, 10),
-        child: shortLandscape
-            ? _MobileLandscapePlayer(state: state)
-            : SizedBox(
-                key: const ValueKey('mobile-player-centering-area'),
-                child: Center(
-                  child: _MobilePortraitPlayer(
-                    state: state,
-                    artSize: portraitArtSize,
-                  ),
+      fit: StackFit.expand,
+      children: [
+        ImageFiltered(
+          key: const ValueKey('mobile-blurred-cover'),
+          imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+          child: Transform.scale(
+            scale: 1.14,
+            child: TrackArtwork(
+              artworkUrl:
+                  state.track!.highResArtworkUrl ?? state.track!.artworkUrl,
+              highRes: true,
+              iconSize: 72,
+              borderRadius: BorderRadius.zero,
+              showBorder: false,
+            ),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: lyricsMode
+                  ? const [Color(0x92020A0F), Color(0xC2020A0F)]
+                  : const [Color(0xBC020A0F), Color(0xCA020A0F)],
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Positioned(
+                      left: 0,
+                      child: IconButton(
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.maybePop(context),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 29),
+                      ),
+                    ),
+                    _MobileModeSwitch(
+                      lyrics: lyricsMode,
+                      onChanged: onModeChanged,
+                    ),
+                    Positioned(
+                      right: 0,
+                      child: IconButton(
+                        tooltip: 'Queue',
+                        onPressed: () => showQueue(context),
+                        icon: const Icon(Icons.queue_music_rounded),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-      ),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
+                  child: lyricsMode
+                      ? _MobileLyricsMode(
+                          key: const ValueKey('mobile-lyrics-section'),
+                          state: state,
+                        )
+                      : Padding(
+                          key: const ValueKey('mobile-player-centering-area'),
+                          padding: EdgeInsets.fromLTRB(
+                            horizontal,
+                            0,
+                            horizontal,
+                            8,
+                          ),
+                          child: Center(
+                            child: _MobilePortraitPlayer(
+                              state: state,
+                              artSize: portraitArtSize,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context)
-          .copyWith(physics: const ClampingScrollPhysics(), scrollbars: false),
-      child: SingleChildScrollView(
-        key: const ValueKey('mobile-player-scroll'),
-        physics: const ClampingScrollPhysics(),
-        child: Column(
-          children: [
-            SizedBox(height: maxHeight, child: player),
-            Container(
-              key: lyricsKey,
-              constraints: BoxConstraints(minHeight: math.max(520, maxHeight)),
-              padding: EdgeInsets.fromLTRB(
-                horizontal,
-                math.max(safeTop, 64.0) + 16,
-                horizontal,
-                16,
-              ),
-              color: HiHatColors.chamberSunken,
-              child: SizedBox(
-                key: const ValueKey('mobile-lyrics-section'),
-                height: math.max(420, maxHeight - 110),
-                child: LyricsView(
-                  key: ValueKey(
-                    'mobile-lyrics-${state.track!.providerTrackId}',
+  }
+}
+
+class _DesktopReferencePlayer extends StatelessWidget {
+  const _DesktopReferencePlayer({required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final track = state.track!;
+    final artworkPaneWidth = MediaQuery.sizeOf(context).width * .5375;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const ColoredBox(color: Color(0xFF020A0F)),
+        Positioned(
+          left: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ImageFiltered(
+                key: const ValueKey('desktop-blurred-cover'),
+                imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                child: Transform.scale(
+                  scale: 1.10,
+                  child: TrackArtwork(
+                    key: const ValueKey('desktop-cover-backdrop-source'),
+                    artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
+                    highRes: true,
+                    iconSize: 120,
+                    borderRadius: BorderRadius.zero,
+                    showBorder: false,
                   ),
-                  scrollable: true,
-                  immersive: true,
                 ),
               ),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xA2020A0F), Color(0xCA020A0F)],
+                    stops: [0, .76],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              SizedBox(
+                key: const ValueKey('full-player-artwork'),
+                width: artworkPaneWidth,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    TrackArtwork(
+                      key: const ValueKey('desktop-cover-layer'),
+                      artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
+                      highRes: true,
+                      iconSize: 120,
+                      borderRadius: BorderRadius.circular(15),
+                      showBorder: false,
+                    ),
+                    Positioned(
+                      left: 16,
+                      top: 16,
+                      child: SizedBox.square(
+                        key: const ValueKey('desktop-back-button'),
+                        dimension: 56,
+                        child: Material(
+                          color: const Color(0xFF0A2435).withValues(alpha: .82),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            tooltip: 'Back',
+                            padding: EdgeInsets.zero,
+                            iconSize: 29,
+                            onPressed: () => Navigator.maybePop(context),
+                            icon: const Icon(Icons.arrow_back_rounded),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 20,
+                      bottom: 234,
+                      child: RotatedBox(
+                        quarterTurns: 1,
+                        child: Text(
+                          track.album?.trim().isNotEmpty == true
+                              ? track.album!
+                              : 'Your Name',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Inter',
+                            fontSize: 34,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(56, 17, 0, 0),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        flex: 61,
+                        child: LyricsView(
+                          key: ValueKey(track.providerTrackId),
+                          scrollable: true,
+                          immersive: true,
+                          japaneseLabel: true,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 39,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 0),
+                          child: _DesktopControls(state: state),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopControls extends ConsumerWidget {
+  const _DesktopControls({required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = state.track!;
+    return Column(
+      key: const ValueKey('desktop-player-controls'),
+      children: [
+        const SizedBox(height: 20),
+        Text(
+          track.displayTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontFamily: 'Inter',
+            fontSize: 29,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          track.artist.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF879099),
+            fontFamily: 'Inter',
+            fontSize: 18,
+          ),
+        ),
+        const SizedBox(height: 21),
+        Padding(
+          padding: const EdgeInsets.only(right: 0),
+          child: _ReferenceProgress(state: state),
+        ),
+        const SizedBox(height: 75),
+        _ReferenceTransport(state: state),
+        const Spacer(),
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Repeat ${state.repeatMode.name}',
+              onPressed: ref.read(audioEngineProvider.notifier).cycleRepeat,
+              icon: Icon(
+                state.repeatMode == PlaybackRepeatMode.one
+                    ? Icons.repeat_one_rounded
+                    : Icons.repeat_rounded,
+                color: state.repeatMode == PlaybackRepeatMode.off
+                    ? const Color(0xFF7D858B)
+                    : Colors.white,
+              ),
+            ),
+            const SizedBox(width: 10),
+            IconButton(
+              tooltip: state.shuffle ? 'Shuffle on' : 'Shuffle off',
+              onPressed: ref.read(audioEngineProvider.notifier).toggleShuffle,
+              icon: Icon(
+                Icons.shuffle_rounded,
+                color: state.shuffle ? Colors.white : const Color(0xFF7D858B),
+              ),
+            ),
+            const Spacer(),
+            SizedBox(width: 248, child: _Volume(state: state, compact: true)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ReferenceProgress extends ConsumerWidget {
+  const _ReferenceProgress({required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final max = state.duration.inMilliseconds.toDouble();
+    final value = max <= 0
+        ? 0.0
+        : state.position.inMilliseconds.clamp(0, max.toInt()).toDouble();
+    return Column(
+      key: const ValueKey('reference-progress'),
+      children: [
+        SizedBox(
+          height: 14,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: Colors.white,
+              inactiveTrackColor: const Color(0xFF292B2B),
+              trackHeight: 8,
+              thumbShape: SliderComponentShape.noThumb,
+              overlayShape: SliderComponentShape.noOverlay,
+            ),
+            child: Slider(
+              value: value,
+              max: max <= 0 ? 1 : max,
+              onChanged: max <= 0
+                  ? null
+                  : (next) => ref
+                        .read(audioEngineProvider.notifier)
+                        .seek(Duration(milliseconds: next.round())),
+            ),
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _time(state.position),
+              style: const TextStyle(color: Color(0xFF878C8F)),
+            ),
+            Text(
+              _time(state.duration),
+              style: const TextStyle(color: Color(0xFF878C8F)),
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+class _ReferenceTransport extends ConsumerWidget {
+  const _ReferenceTransport({required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final engine = ref.read(audioEngineProvider.notifier);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          tooltip: 'Rewind 10 seconds',
+          onPressed: () => engine.seekRelative(const Duration(seconds: -10)),
+          icon: const Icon(Icons.replay_10_rounded),
+        ),
+        const SizedBox(width: 26),
+        IconButton(
+          tooltip: 'Previous',
+          onPressed: engine.previous,
+          iconSize: 34,
+          icon: const Icon(Icons.skip_previous_rounded),
+        ),
+        const SizedBox(width: 35),
+        IconButton(
+          tooltip: state.playing ? 'Pause' : 'Play',
+          onPressed: engine.toggle,
+          padding: EdgeInsets.zero,
+          icon: state.playing
+              ? const _ReferencePauseGlyph()
+              : const Icon(Icons.play_arrow_rounded, size: 58),
+        ),
+        const SizedBox(width: 35),
+        IconButton(
+          tooltip: 'Next',
+          onPressed: engine.next,
+          iconSize: 34,
+          icon: const Icon(Icons.skip_next_rounded),
+        ),
+        const SizedBox(width: 26),
+        IconButton(
+          tooltip: 'Forward 10 seconds',
+          onPressed: () => engine.seekRelative(const Duration(seconds: 10)),
+          icon: const Icon(Icons.forward_10_rounded),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReferencePauseGlyph extends StatelessWidget {
+  const _ReferencePauseGlyph();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 42,
+    height: 52,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Container(
+          width: 13,
+          height: 47,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(5),
+          ),
+        ),
+        Container(
+          width: 13,
+          height: 47,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(5),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _MobileModeSwitch extends StatelessWidget {
+  const _MobileModeSwitch({required this.lyrics, required this.onChanged});
+
+  final bool lyrics;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('mobile-mode-switch'),
+    width: 150,
+    height: 38,
+    padding: const EdgeInsets.all(4),
+    decoration: BoxDecoration(
+      color: const Color(0xFF20272C),
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Row(
+      children: [
+        _item(context, 'Music', false),
+        _item(context, 'Lyrics', true),
+      ],
+    ),
+  );
+
+  Widget _item(BuildContext context, String label, bool value) {
+    final selected = lyrics == value;
+    return Expanded(
+      child: Material(
+        color: selected ? Colors.white : Colors.transparent,
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: () => onChanged(value),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? const Color(0xFF101417) : Colors.white,
+                fontFamily: 'Inter',
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _MobileLyricsMode extends ConsumerWidget {
+  const _MobileLyricsMode({super.key, required this.state});
+
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = state.track!;
+    final language = ref.watch(_lyricsLanguageProvider(track.providerTrackId));
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final lyricsHeight = (constraints.maxHeight * .43).clamp(180.0, 360.0);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Column(
+            children: [
+              SizedBox(
+                height: lyricsHeight,
+                child: LyricsView(
+                  key: ValueKey('mobile-lyrics-${track.providerTrackId}'),
+                  scrollable: true,
+                  immersive: true,
+                  showHeader: false,
+                  compactLines: true,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: _LyricsLanguageSwitch(
+                  language: language,
+                  japaneseLabel: true,
+                  reversed: true,
+                  width: 270,
+                  onChanged: (value) =>
+                      ref
+                              .read(
+                                _lyricsLanguageProvider(track.providerTrackId)
+                                    .notifier,
+                              )
+                              .state =
+                          value,
+                ),
+              ),
+              const Spacer(),
+              _MobileTrackIdentity(state: state, compact: true),
+              const SizedBox(height: 4),
+              _MobileProgress(state: state),
+              const SizedBox(height: 8),
+              _MobileTransport(state: state, compact: true),
+              const SizedBox(height: 12),
+              _MobilePlaybackStatus(state: state),
+              const SizedBox(height: 6),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -365,21 +682,24 @@ class _MobilePortraitPlayer extends StatelessWidget {
   final double artSize;
 
   @override
-  Widget build(BuildContext context) => Column(
-    key: const ValueKey('mobile-player-composition'),
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      _MobileArtwork(state: state, size: artSize),
-      const SizedBox(height: 12),
-      _MobileTrackIdentity(state: state),
-      const SizedBox(height: 16),
-      _MobileProgress(state: state),
-      const SizedBox(height: 10),
-      _MobileTransport(state: state),
-      const SizedBox(height: 10),
-      _MobilePlaybackStatus(state: state),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final tight = artSize < 280 || MediaQuery.sizeOf(context).width < 370;
+    return Column(
+      key: const ValueKey('mobile-player-composition'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _MobileArtwork(state: state, size: artSize),
+        SizedBox(height: tight ? 10 : 34),
+        _MobileTrackIdentity(state: state, compact: tight),
+        SizedBox(height: tight ? 2 : 10),
+        _MobileProgress(state: state),
+        SizedBox(height: tight ? 2 : 28),
+        _MobileTransport(state: state, compact: tight),
+        SizedBox(height: tight ? 2 : 54),
+        _MobilePlaybackStatus(state: state),
+      ],
+    );
+  }
 }
 
 class _MobileLandscapePlayer extends StatelessWidget {
@@ -405,17 +725,20 @@ class _MobileLandscapePlayer extends StatelessWidget {
       Expanded(
         flex: 7,
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _MobileTrackIdentity(state: state, compact: true),
-              const SizedBox(height: 8),
-              _MobileProgress(state: state),
-              const SizedBox(height: 4),
-              _MobileTransport(state: state, compact: true),
-              const SizedBox(height: 4),
-              _MobilePlaybackStatus(state: state),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.only(top: 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _MobileTrackIdentity(state: state, compact: true),
+                const SizedBox(height: 8),
+                _MobileProgress(state: state),
+                const SizedBox(height: 4),
+                _MobileTransport(state: state, compact: true),
+                const SizedBox(height: 4),
+                _MobilePlaybackStatus(state: state),
+              ],
+            ),
           ),
         ),
       ),
@@ -440,6 +763,7 @@ class _MobileArtwork extends StatelessWidget {
         highRes: true,
         iconSize: math.min(72, size * .24),
         borderRadius: BorderRadius.circular(14),
+        showBorder: false,
       ),
     );
   }
@@ -461,7 +785,7 @@ class _MobileTrackIdentity extends StatelessWidget {
         children: [
           Text(
             track.displayTitle,
-            maxLines: compact ? 1 : 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style:
@@ -470,18 +794,19 @@ class _MobileTrackIdentity extends StatelessWidget {
                         : Theme.of(context).textTheme.headlineMedium)
                     ?.copyWith(
                       color: HiHatColors.mineral,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                      fontSize: compact ? 19 : 24,
                       height: 1.15,
                     ),
           ),
           const SizedBox(height: 4),
           Text(
-            track.artist,
+            track.artist.toUpperCase(),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge
-                ?.copyWith(color: HiHatColors.trace),
+                ?.copyWith(color: const Color(0xFF7C858D), letterSpacing: .4),
           ),
         ],
       ),
@@ -506,10 +831,11 @@ class _MobileProgress extends ConsumerWidget {
           height: 28,
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 3,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              activeTrackColor: Colors.white,
+              inactiveTrackColor: const Color(0xFF282A2B),
+              trackHeight: 8,
+              thumbShape: SliderComponentShape.noThumb,
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-              inactiveTrackColor: HiHatColors.trace.withValues(alpha: .34),
             ),
             child: Slider(
               label: 'Playback position',
@@ -555,23 +881,26 @@ class _MobileTransport extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final engine = ref.read(audioEngineProvider.notifier);
-    final primarySize = compact ? 60.0 : 72.0;
+    final primarySize = compact ? 48.0 : 72.0;
+    final gap = compact ? 0.0 : 14.0;
     return SizedBox(
       key: const ValueKey('mobile-player-transport'),
       height: primarySize,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _MobileTransportButton(
-            tooltip: 'Previous',
-            icon: Icons.skip_previous_rounded,
-            onPressed: engine.previous,
-          ),
           _MobileTransportButton(
             tooltip: 'Rewind 10 seconds',
             icon: Icons.replay_10_rounded,
             onPressed: () => engine.seekRelative(const Duration(seconds: -10)),
           ),
+          SizedBox(width: gap),
+          _MobileTransportButton(
+            tooltip: 'Previous',
+            icon: Icons.skip_previous_rounded,
+            onPressed: engine.previous,
+          ),
+          SizedBox(width: gap),
           Tooltip(
             message: state.playing ? 'Pause' : 'Play',
             child: Semantics(
@@ -580,35 +909,65 @@ class _MobileTransport extends ConsumerWidget {
               child: FilledButton(
                 style: FilledButton.styleFrom(
                   padding: EdgeInsets.zero,
-                  backgroundColor: HiHatColors.signal,
-                  foregroundColor: HiHatColors.onSignal,
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
                   shape: const CircleBorder(),
                   minimumSize: Size.square(primarySize),
                 ),
                 onPressed: engine.toggle,
-                child: Icon(
-                  state.playing
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  size: compact ? 32 : 38,
-                ),
+                child: state.playing
+                    ? const _MobilePauseGlyph()
+                    : Icon(Icons.play_arrow_rounded, size: compact ? 32 : 38),
               ),
             ),
           ),
-          _MobileTransportButton(
-            tooltip: 'Forward 10 seconds',
-            icon: Icons.forward_10_rounded,
-            onPressed: () => engine.seekRelative(const Duration(seconds: 10)),
-          ),
+          SizedBox(width: gap),
           _MobileTransportButton(
             tooltip: 'Next',
             icon: Icons.skip_next_rounded,
             onPressed: engine.next,
           ),
+          SizedBox(width: gap),
+          _MobileTransportButton(
+            tooltip: 'Forward 10 seconds',
+            icon: Icons.forward_10_rounded,
+            onPressed: () => engine.seekRelative(const Duration(seconds: 10)),
+          ),
         ],
       ),
     );
   }
+}
+
+class _MobilePauseGlyph extends StatelessWidget {
+  const _MobilePauseGlyph();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 25,
+    height: 34,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Container(
+          width: 8,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        Container(
+          width: 8,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _MobileTransportButton extends StatelessWidget {
@@ -642,61 +1001,11 @@ class _MobilePlaybackStatus extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final engine = ref.read(audioEngineProvider.notifier);
-    final textScale = MediaQuery.textScalerOf(context).scale(12) / 12;
     return SizedBox(
       key: const ValueKey('mobile-player-status'),
-      height: 52 + ((textScale - 1).clamp(0, 1) * 20),
+      height: 48,
       child: Row(
         children: [
-          IconButton(
-            tooltip: state.shuffle ? 'Turn shuffle off' : 'Turn shuffle on',
-            isSelected: state.shuffle,
-            onPressed: engine.toggleShuffle,
-            icon: Icon(
-              Icons.shuffle_rounded,
-              color: state.shuffle ? HiHatColors.signal : HiHatColors.trace,
-            ),
-          ),
-          Expanded(
-            child: Semantics(
-              label:
-                  'Verified source ${_mobileQuality(state)}. Output ${state.outputLabel}',
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.verified_rounded,
-                        size: 14,
-                        color: HiHatColors.signal,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _mobileQuality(state),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(color: HiHatColors.mineral),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    state.outputLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.labelSmall
-                        ?.copyWith(color: HiHatColors.trace),
-                  ),
-                ],
-              ),
-            ),
-          ),
           IconButton(
             tooltip: 'Repeat ${state.repeatMode.name}',
             isSelected: state.repeatMode != PlaybackRepeatMode.off,
@@ -706,8 +1015,26 @@ class _MobilePlaybackStatus extends ConsumerWidget {
                   ? Icons.repeat_one_rounded
                   : Icons.repeat_rounded,
               color: state.repeatMode != PlaybackRepeatMode.off
-                  ? HiHatColors.signal
+                  ? Colors.white
                   : HiHatColors.trace,
+            ),
+          ),
+          IconButton(
+            tooltip: state.shuffle ? 'Turn shuffle off' : 'Turn shuffle on',
+            isSelected: state.shuffle,
+            onPressed: engine.toggleShuffle,
+            icon: Icon(
+              Icons.shuffle_rounded,
+              color: state.shuffle ? Colors.white : HiHatColors.trace,
+            ),
+          ),
+          const Spacer(),
+          Semantics(
+            label:
+                'Verified source ${_mobileQuality(state)}. Output ${state.outputLabel}',
+            child: SizedBox(
+              width: 190,
+              child: _Volume(state: state, compact: true),
             ),
           ),
         ],
@@ -733,6 +1060,8 @@ String _mobileQuality(PlaybackState state) {
   return parts.join(' / ');
 }
 
+// Kept as the compact/legacy deck implementation for downstream integrations.
+// ignore: unused_element
 class _ControlDeck extends StatelessWidget {
   const _ControlDeck({
     required this.state,
@@ -1073,37 +1402,70 @@ class _Volume extends ConsumerWidget {
 }
 
 class _LyricsLanguageSwitch extends StatelessWidget {
-  const _LyricsLanguageSwitch({required this.english, required this.onChanged});
+  const _LyricsLanguageSwitch({
+    required this.language,
+    required this.onChanged,
+    this.japaneseLabel = false,
+    this.reversed = false,
+    this.width = 181,
+  });
 
-  final bool english;
-  final ValueChanged<bool> onChanged;
+  final _LyricsLanguage language;
+  final ValueChanged<_LyricsLanguage> onChanged;
+  final bool japaneseLabel;
+  final bool reversed;
+  final double width;
 
   @override
   Widget build(BuildContext context) => Container(
-    width: 181,
-    height: 45,
+    key: const ValueKey('lyrics-language-switch'),
+    width: width,
+    height: 38,
     padding: const EdgeInsets.all(3),
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: .16),
+      color: const Color(0xFF20262B),
       borderRadius: BorderRadius.circular(999),
     ),
     child: Row(
-      children: [
-        _segment(context, label: 'Original', value: false),
-        _segment(context, label: 'English', value: true),
-      ],
+      children: reversed
+          ? [
+              _segment(
+                context,
+                label: japaneseLabel ? 'Japanese' : 'Original',
+                value: _LyricsLanguage.japanese,
+              ),
+              _segment(context, label: 'Romaji', value: _LyricsLanguage.romaji),
+              _segment(
+                context,
+                label: 'English',
+                value: _LyricsLanguage.english,
+              ),
+            ]
+          : [
+              _segment(
+                context,
+                label: 'English',
+                value: _LyricsLanguage.english,
+              ),
+              _segment(
+                context,
+                label: japaneseLabel ? 'Japanese' : 'Original',
+                value: _LyricsLanguage.japanese,
+              ),
+              _segment(context, label: 'Romaji', value: _LyricsLanguage.romaji),
+            ],
     ),
   );
 
   Widget _segment(
     BuildContext context, {
     required String label,
-    required bool value,
+    required _LyricsLanguage value,
   }) {
-    final selected = english == value;
+    final selected = language == value;
     return Expanded(
       child: Material(
-        color: selected ? HiHatColors.signal : Colors.transparent,
+        color: selected ? Colors.white : Colors.transparent,
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
@@ -1112,7 +1474,8 @@ class _LyricsLanguageSwitch extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: selected ? HiHatColors.onSignal : Colors.white,
+                color: selected ? const Color(0xFF101417) : Colors.white,
+                fontFamily: 'Inter',
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1128,10 +1491,16 @@ class LyricsView extends ConsumerStatefulWidget {
     super.key,
     this.scrollable = false,
     this.immersive = false,
+    this.showHeader = true,
+    this.compactLines = false,
+    this.japaneseLabel = false,
   });
 
   final bool scrollable;
   final bool immersive;
+  final bool showHeader;
+  final bool compactLines;
+  final bool japaneseLabel;
 
   @override
   ConsumerState<LyricsView> createState() => _LyricsViewState();
@@ -1150,6 +1519,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
   void followActiveLine(BuildContext context, int active) {
     if (!widget.immersive || active < 0 || active == lastActiveLine) return;
+    final initialPosition = lastActiveLine == -2;
     lastActiveLine = active;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -1157,25 +1527,25 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       if (lineContext == null) return;
       final reduceMotion =
           MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-      final duration = reduceMotion
+      final duration = reduceMotion || initialPosition
           ? Duration.zero
-          : const Duration(milliseconds: 220);
+          : const Duration(milliseconds: 700);
       final renderObject = lineContext.findRenderObject();
       if (widget.scrollable &&
           scrollController.hasClients &&
           renderObject != null) {
         scrollController.position.ensureVisible(
           renderObject,
-          alignment: .28,
+          alignment: .5,
           duration: duration,
-          curve: Curves.easeOutCubic,
+          curve: Curves.easeInOutCubic,
         );
       } else {
         Scrollable.ensureVisible(
           lineContext,
-          alignment: .28,
+          alignment: .5,
           duration: duration,
-          curve: Curves.easeOutCubic,
+          curve: Curves.easeInOutCubic,
         );
       }
     });
@@ -1188,16 +1558,18 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     required String text,
   }) {
     final lineDistance = active < 0 ? 0 : (index - active).abs();
-    final blur = !widget.immersive || lineDistance < 3
+    final blur = !widget.immersive || lineDistance == 0
         ? 0.0
-        : math.min(4.5, (lineDistance - 1) * .8);
+        : math.min(5.0, .45 + (lineDistance * .72));
     final inactiveOpacity = lineDistance <= 1
-        ? .50
+        ? .46
         : lineDistance == 2
         ? .38
         : lineDistance == 3
-        ? .26
-        : .16;
+        ? .30
+        : lineDistance == 4
+        ? .23
+        : .17;
     final isActive = index == active;
     return Padding(
       key: lineKeys.putIfAbsent(index, GlobalKey.new),
@@ -1208,9 +1580,16 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
           text,
           textAlign: widget.immersive ? TextAlign.left : TextAlign.center,
           style: TextStyle(
-            fontSize: widget.immersive ? 40 : (isActive ? 19 : 16),
-            height: widget.immersive ? 1.25 : null,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+            fontFamily: 'Inter',
+            fontSize: widget.compactLines
+                ? (isActive ? 26 : 25)
+                : widget.immersive
+                ? 40
+                : (isActive ? 19 : 16),
+            height: widget.compactLines
+                ? 1.16
+                : (widget.immersive ? 1.25 : null),
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
             color: isActive
                 ? (widget.immersive
                       ? Colors.white
@@ -1296,143 +1675,189 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     final playback = ref.watch(audioEngineProvider);
     final track = playback.track;
     if (track == null) return const SizedBox.shrink();
-    final showEnglish = ref.watch(
-      _showEnglishLyricsProvider(track.providerTrackId),
-    );
-    final originalLyrics = showEnglish
-        ? ref.watch(lyricsProvider(track)).asData?.value
-        : null;
-    final lyricsContent = showEnglish
-        ? ref
-              .watch(englishLyricsProvider(track))
-              .when(
-                loading: () => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
+    final language = ref.watch(_lyricsLanguageProvider(track.providerTrackId));
+    final originalLyrics = language == _LyricsLanguage.japanese
+        ? null
+        : ref.watch(lyricsProvider(track)).asData?.value;
+    final lyricsContent = switch (language) {
+      _LyricsLanguage.english =>
+        ref
+            .watch(englishLyricsProvider(track))
+            .when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
                 ),
-                error: (error, _) => Text(
-                  error is LyricsTranslationException
-                      ? error.message
-                      : 'The English translation could not be loaded.',
-                ),
-                data: (translation) {
-                  if (translation == null) {
-                    return const Text('These lyrics are already in English.');
-                  }
-                  if (widget.immersive) {
-                    return immersiveTranslatedLyrics(
-                      context,
+              ),
+              error: (error, _) => Text(
+                error is LyricsTranslationException
+                    ? error.message
+                    : 'The English translation could not be loaded.',
+              ),
+              data: (translation) {
+                if (translation == null) {
+                  return const Text('These lyrics are already in English.');
+                }
+                if (widget.immersive) {
+                  return immersiveTranslatedLyrics(
+                    context,
+                    translation.text,
+                    originalLyrics,
+                    playback,
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SelectableText(
                       translation.text,
-                      originalLyrics,
+                      style: const TextStyle(height: 1.65),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Translated online with DeepL. Machine translations may miss wordplay or cultural context.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ],
+                );
+              },
+            ),
+      _LyricsLanguage.romaji =>
+        ref
+            .watch(romajiLyricsProvider(track))
+            .when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+              error: (_, _) =>
+                  const Text('The Romaji lyrics could not be generated.'),
+              data: (romaji) {
+                if (romaji == null || romaji.trim().isEmpty) {
+                  return const Text(
+                    'Romaji lyrics are not available for this song.',
+                  );
+                }
+                if (widget.immersive) {
+                  return immersiveTranslatedLyrics(
+                    context,
+                    romaji,
+                    originalLyrics,
+                    playback,
+                  );
+                }
+                return SelectableText(
+                  romaji,
+                  style: const TextStyle(height: 1.65),
+                );
+              },
+            ),
+      _LyricsLanguage.japanese =>
+        ref
+            .watch(lyricsProvider(track))
+            .when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+              error: (_, _) => const Text(
+                'Lyrics could not be loaded. Check your connection and try again.',
+              ),
+              data: (lyrics) {
+                if (lyrics == null) {
+                  return const Text('Lyrics are not available for this song.');
+                }
+                if (lyrics.synced.isEmpty) {
+                  if (widget.immersive) {
+                    return immersivePlainLyrics(
+                      context,
+                      lyrics.plain,
                       playback,
                     );
                   }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SelectableText(
-                        translation.text,
-                        style: const TextStyle(height: 1.65),
+                  return SelectableText(
+                    lyrics.plain,
+                    style: const TextStyle(height: 1.65),
+                  );
+                }
+                var active = -1;
+                for (var i = 0; i < lyrics.synced.length; i++) {
+                  if (lyrics.synced[i].time <= playback.position) active = i;
+                }
+                followActiveLine(context, active);
+                return Column(
+                  crossAxisAlignment: widget.immersive
+                      ? CrossAxisAlignment.start
+                      : CrossAxisAlignment.center,
+                  children: [
+                    for (var i = 0; i < lyrics.synced.length; i++)
+                      syncedLine(
+                        context,
+                        index: i,
+                        active: active,
+                        text: lyrics.synced[i].text,
                       ),
+                    if (!widget.immersive) ...[
                       const SizedBox(height: 12),
                       const Text(
-                        'Translated online with DeepL. Machine translations may miss wordplay or cultural context.',
+                        'Lyrics provided by LRCLIB',
                         style: TextStyle(fontSize: 12),
                       ),
                     ],
-                  );
-                },
-              )
-        : ref
-              .watch(lyricsProvider(track))
-              .when(
-                loading: () => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-                error: (_, _) => const Text(
-                  'Lyrics could not be loaded. Check your connection and try again.',
-                ),
-                data: (lyrics) {
-                  if (lyrics == null) {
-                    return const Text(
-                      'Lyrics are not available for this song.',
-                    );
-                  }
-                  if (lyrics.synced.isEmpty) {
-                    if (widget.immersive) {
-                      return immersivePlainLyrics(
-                        context,
-                        lyrics.plain,
-                        playback,
-                      );
-                    }
-                    return SelectableText(
-                      lyrics.plain,
-                      style: const TextStyle(height: 1.65),
-                    );
-                  }
-                  var active = -1;
-                  for (var i = 0; i < lyrics.synced.length; i++) {
-                    if (lyrics.synced[i].time <= playback.position) active = i;
-                  }
-                  followActiveLine(context, active);
-                  return Column(
-                    crossAxisAlignment: widget.immersive
-                        ? CrossAxisAlignment.start
-                        : CrossAxisAlignment.center,
-                    children: [
-                      for (var i = 0; i < lyrics.synced.length; i++)
-                        syncedLine(
-                          context,
-                          index: i,
-                          active: active,
-                          text: lyrics.synced[i].text,
-                        ),
-                      if (!widget.immersive) ...[
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Lyrics provided by LRCLIB',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ],
-                  );
-                },
-              );
+                  ],
+                );
+              },
+            ),
+    };
     final header = LayoutBuilder(
       builder: (context, constraints) {
-        final title = Text(
-          'Lyrics',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: widget.immersive ? Colors.white : null,
-            fontWeight: widget.immersive ? FontWeight.w500 : null,
-            fontSize: widget.immersive ? 24 : null,
+        final title = Padding(
+          padding: EdgeInsets.only(top: widget.immersive ? 8 : 0),
+          child: Text(
+            widget.immersive ? 'LYRICS' : 'Lyrics',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: widget.immersive ? Colors.white : null,
+              fontWeight: widget.immersive ? FontWeight.w400 : null,
+              fontSize: widget.immersive ? 16 : null,
+              letterSpacing: widget.immersive ? 4.2 : null,
+            ),
           ),
         );
-        void selectLanguage(bool value) =>
+        void selectLanguage(_LyricsLanguage value) =>
             ref
                     .read(
-                      _showEnglishLyricsProvider(track.providerTrackId)
-                          .notifier,
+                      _lyricsLanguageProvider(track.providerTrackId).notifier,
                     )
                     .state =
                 value;
         final Widget languageSelector = widget.immersive
             ? _LyricsLanguageSwitch(
-                english: showEnglish,
+                language: language,
+                japaneseLabel: widget.japaneseLabel,
+                width: widget.compactLines ? 270 : 286,
                 onChanged: selectLanguage,
               )
-            : SegmentedButton<bool>(
+            : SegmentedButton<_LyricsLanguage>(
                 segments: const [
-                  ButtonSegment(value: false, label: Text('Original')),
-                  ButtonSegment(value: true, label: Text('English')),
+                  ButtonSegment(
+                    value: _LyricsLanguage.japanese,
+                    label: Text('Original'),
+                  ),
+                  ButtonSegment(
+                    value: _LyricsLanguage.romaji,
+                    label: Text('Romaji'),
+                  ),
+                  ButtonSegment(
+                    value: _LyricsLanguage.english,
+                    label: Text('English'),
+                  ),
                 ],
-                selected: {showEnglish},
+                selected: {language},
                 onSelectionChanged: (selection) =>
                     selectLanguage(selection.first),
               );
@@ -1443,9 +1868,21 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
           );
         }
         return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: title),
             languageSelector,
+            if (widget.immersive) ...[
+              const SizedBox(width: 26),
+              Transform.translate(
+                offset: const Offset(0, -5),
+                child: IconButton(
+                  tooltip: 'Queue',
+                  onPressed: () => showQueue(context),
+                  icon: const Icon(Icons.queue_music_rounded),
+                ),
+              ),
+            ],
           ],
         );
       },
@@ -1459,31 +1896,45 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          header,
-          const SizedBox(height: 34),
+          if (widget.showHeader) ...[header, const SizedBox(height: 25)],
           Expanded(
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (bounds) => const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.white,
-                  Colors.white,
-                  Colors.white,
-                  Colors.transparent,
-                ],
-                stops: [0, .14, .36, .82, 1],
-              ).createShader(bounds),
-              child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(context)
-                    .copyWith(scrollbars: false),
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  primary: false,
-                  physics: const ClampingScrollPhysics(),
-                  child: lyricsBody,
+            child: LayoutBuilder(
+              builder: (context, viewport) => ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (bounds) => const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.white,
+                    Colors.white,
+                    Colors.white,
+                    Colors.transparent,
+                  ],
+                  stops: [0, .14, .36, .82, 1],
+                ).createShader(bounds),
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context)
+                      .copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    primary: false,
+                    physics: const ClampingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          key: const ValueKey('lyrics-leading-space'),
+                          height: viewport.maxHeight * .46,
+                        ),
+                        lyricsBody,
+                        SizedBox(
+                          key: const ValueKey('lyrics-trailing-space'),
+                          height: viewport.maxHeight * .46,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1509,8 +1960,10 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
   }
 }
 
-final _showEnglishLyricsProvider = StateProvider.family<bool, String>(
-  (ref, trackId) => false,
+enum _LyricsLanguage { japanese, romaji, english }
+
+final _lyricsLanguageProvider = StateProvider.family<_LyricsLanguage, String>(
+  (ref, trackId) => _LyricsLanguage.japanese,
 );
 
 Future<void> showQueue(BuildContext context) => showModalBottomSheet<void>(
@@ -1559,7 +2012,10 @@ class QueueView extends ConsumerWidget {
           ),
           if (state.track != null && state.relatedAutoplay)
             ListTile(
-              leading: const Icon(Icons.graphic_eq, color: HiHatColors.signal),
+              leading: const Icon(
+                Icons.graphic_eq_rounded,
+                color: HiHatColors.signal,
+              ),
               title: Text(state.track!.displayTitle),
               subtitle: Text('${state.track!.artist} · Now playing'),
             ),
@@ -1607,7 +2063,7 @@ class QueueView extends ConsumerWidget {
                           onPressed: () => ref
                               .read(audioEngineProvider.notifier)
                               .removeAt(i),
-                          icon: const Icon(Icons.close),
+                          icon: const Icon(Icons.close_rounded),
                         ),
                       ],
                     ),

@@ -251,7 +251,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             return SliverFillRemaining(
               hasScrollBody: false,
               child: _SearchMessage(
-                icon: Icons.cloud_off_outlined,
+                icon: Icons.cloud_off_rounded,
                 title: providerUnavailable
                     ? 'Search source did not respond'
                     : 'Search could not be completed',
@@ -262,7 +262,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   onPressed: () => ref
                       .read(searchControllerProvider.notifier)
                       .search(controller.text),
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh_rounded),
                   label: const Text('Try again'),
                 ),
               ),
@@ -273,7 +273,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               return SliverFillRemaining(
                 hasScrollBody: false,
                 child: _SearchMessage(
-                  icon: hasQuery ? Icons.search_off : Icons.graphic_eq,
+                  icon: hasQuery
+                      ? Icons.search_off_rounded
+                      : Icons.graphic_eq_rounded,
                   title: hasQuery
                       ? 'No tracks found'
                       : 'One search. One local copy.',

@@ -75,7 +75,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               // Library Section Card
               _buildSectionCard(
                 title: 'Library location',
-                icon: Icons.folder_outlined,
+                icon: Icons.folder_rounded,
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -106,7 +106,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ),
                           )
                         : const Icon(
-                            Icons.chevron_right,
+                            Icons.chevron_right_rounded,
                             color: HiHatColors.trace,
                           ),
                     onTap: choosingFolder ? null : _chooseLibraryFolder,
@@ -133,7 +133,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
-                      Icons.high_quality_outlined,
+                      Icons.high_quality_rounded,
                       color: HiHatColors.coral,
                     ),
                     title: Text(
@@ -151,7 +151,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
-                      Icons.speaker_outlined,
+                      Icons.speaker_rounded,
                       color: HiHatColors.coral,
                     ),
                     title: Text(
@@ -172,7 +172,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               _buildSectionCard(
                 title: 'Connection and provider',
-                icon: Icons.shield_outlined,
+                icon: Icons.shield_rounded,
                 children: [
                   const Text(
                     'Provider verification and session data stay inside the app’s platform WebView. '
@@ -224,7 +224,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
-                      Icons.motion_photos_off_outlined,
+                      Icons.motion_photos_off_rounded,
                       color: HiHatColors.brandBlue,
                     ),
                     title: Text(

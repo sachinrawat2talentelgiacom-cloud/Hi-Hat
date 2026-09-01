@@ -167,7 +167,7 @@ class HeroBanner extends ConsumerWidget {
             if (onEdit != null) ...[
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
+                icon: const Icon(Icons.edit_rounded, size: 18),
                 color: HiHatColors.trace,
                 tooltip: 'Edit details / preferences',
                 onPressed: onEdit,
