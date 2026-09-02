@@ -132,6 +132,68 @@ void main() {
     },
   );
 
+  testWidgets('mobile lyrics player matches the 360x720 reference geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const track = TrackSummary(
+      id: 'local:reference-mobile',
+      provider: 'local',
+      providerTrackId: 'reference-mobile',
+      title: 'Reference Mobile Track',
+      artist: 'Reference Artist',
+      localPath: 'reference-mobile.flac',
+    );
+    final engine = TestAudioEngine(
+      const PlaybackState(
+        track: track,
+        playing: true,
+        position: Duration(minutes: 2),
+        duration: Duration(minutes: 4),
+        queue: [track],
+        currentIndex: 0,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [audioEngineProvider.overrideWith((ref) => engine)],
+        child: MaterialApp(
+          theme: HiHatTheme.dark,
+          home: const FullPlayerScreen(),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Lyrics'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(
+      tester.getRect(find.byKey(const ValueKey('mobile-player-stage'))),
+      const Rect.fromLTWH(0, 0, 360, 720),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('mobile-mode-switch'))),
+      const Rect.fromLTWH(105, 17, 150, 38),
+    );
+    expect(
+      tester.getRect(find.byType(LyricsView)),
+      const Rect.fromLTWH(16, 76, 328, 280),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('lyrics-language-switch'))),
+      const Rect.fromLTWH(45, 360, 270, 38),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('mobile-player-status'))),
+      const Rect.fromLTWH(16, 666, 328, 48),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('mobile player keeps controls reachable on a short phone', (
     tester,
   ) async {
@@ -448,7 +510,7 @@ void main() {
       tester.widget<Text>(find.text('Romaji active line')).style?.fontSize,
       40,
     );
-    await tester.tap(find.text('English'));
+    await tester.tap(find.text('Translated'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('English active line'), findsOneWidget);

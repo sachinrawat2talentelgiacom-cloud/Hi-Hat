@@ -165,9 +165,12 @@ class _MobilePlayerStage extends StatelessWidget {
                         icon: const Icon(Icons.arrow_back_rounded, size: 29),
                       ),
                     ),
-                    _MobileModeSwitch(
-                      lyrics: lyricsMode,
-                      onChanged: onModeChanged,
+                    Transform.translate(
+                      offset: const Offset(0, 8),
+                      child: _MobileModeSwitch(
+                        lyrics: lyricsMode,
+                        onChanged: onModeChanged,
+                      ),
                     ),
                     Positioned(
                       right: 0,
@@ -301,25 +304,6 @@ class _DesktopReferencePlayer extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 20,
-                      bottom: 234,
-                      child: RotatedBox(
-                        quarterTurns: 1,
-                        child: Text(
-                          track.album?.trim().isNotEmpty == true
-                              ? track.album!
-                              : 'Your Name',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontFamily: 'Inter',
-                            fontSize: 34,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -334,7 +318,6 @@ class _DesktopReferencePlayer extends StatelessWidget {
                           key: ValueKey(track.providerTrackId),
                           scrollable: true,
                           immersive: true,
-                          japaneseLabel: true,
                         ),
                       ),
                       Expanded(
@@ -626,9 +609,11 @@ class _MobileLyricsMode extends ConsumerWidget {
     final language = ref.watch(_lyricsLanguageProvider(track.providerTrackId));
     return LayoutBuilder(
       builder: (context, constraints) {
-        final lyricsHeight = (constraints.maxHeight * .43).clamp(180.0, 360.0);
+        // Match the 360x720 reference composition while still compressing on
+        // shorter phones so every playback control remains reachable.
+        final lyricsHeight = (constraints.maxHeight * .43).clamp(180.0, 280.0);
         return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
           child: Column(
             children: [
               SizedBox(
@@ -645,8 +630,6 @@ class _MobileLyricsMode extends ConsumerWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: _LyricsLanguageSwitch(
                   language: language,
-                  japaneseLabel: true,
-                  reversed: true,
                   width: 270,
                   onChanged: (value) =>
                       ref
@@ -1405,15 +1388,11 @@ class _LyricsLanguageSwitch extends StatelessWidget {
   const _LyricsLanguageSwitch({
     required this.language,
     required this.onChanged,
-    this.japaneseLabel = false,
-    this.reversed = false,
     this.width = 181,
   });
 
   final _LyricsLanguage language;
   final ValueChanged<_LyricsLanguage> onChanged;
-  final bool japaneseLabel;
-  final bool reversed;
   final double width;
 
   @override
@@ -1427,33 +1406,11 @@ class _LyricsLanguageSwitch extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
     ),
     child: Row(
-      children: reversed
-          ? [
-              _segment(
-                context,
-                label: japaneseLabel ? 'Japanese' : 'Original',
-                value: _LyricsLanguage.japanese,
-              ),
-              _segment(context, label: 'Romaji', value: _LyricsLanguage.romaji),
-              _segment(
-                context,
-                label: 'English',
-                value: _LyricsLanguage.english,
-              ),
-            ]
-          : [
-              _segment(
-                context,
-                label: 'English',
-                value: _LyricsLanguage.english,
-              ),
-              _segment(
-                context,
-                label: japaneseLabel ? 'Japanese' : 'Original',
-                value: _LyricsLanguage.japanese,
-              ),
-              _segment(context, label: 'Romaji', value: _LyricsLanguage.romaji),
-            ],
+      children: [
+        _segment(context, label: 'Original', value: _LyricsLanguage.japanese),
+        _segment(context, label: 'Translated', value: _LyricsLanguage.english),
+        _segment(context, label: 'Romaji', value: _LyricsLanguage.romaji),
+      ],
     ),
   );
 
@@ -1493,14 +1450,12 @@ class LyricsView extends ConsumerStatefulWidget {
     this.immersive = false,
     this.showHeader = true,
     this.compactLines = false,
-    this.japaneseLabel = false,
   });
 
   final bool scrollable;
   final bool immersive;
   final bool showHeader;
   final bool compactLines;
-  final bool japaneseLabel;
 
   @override
   ConsumerState<LyricsView> createState() => _LyricsViewState();
@@ -1838,7 +1793,6 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
         final Widget languageSelector = widget.immersive
             ? _LyricsLanguageSwitch(
                 language: language,
-                japaneseLabel: widget.japaneseLabel,
                 width: widget.compactLines ? 270 : 286,
                 onChanged: selectLanguage,
               )
@@ -1849,12 +1803,12 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                     label: Text('Original'),
                   ),
                   ButtonSegment(
-                    value: _LyricsLanguage.romaji,
-                    label: Text('Romaji'),
+                    value: _LyricsLanguage.english,
+                    label: Text('Translated'),
                   ),
                   ButtonSegment(
-                    value: _LyricsLanguage.english,
-                    label: Text('English'),
+                    value: _LyricsLanguage.romaji,
+                    label: Text('Romaji'),
                   ),
                 ],
                 selected: {language},
