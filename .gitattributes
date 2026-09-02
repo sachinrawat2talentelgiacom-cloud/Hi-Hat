@@ -1,0 +1,2 @@
+dist/*.apk filter=lfs diff=lfs merge=lfs -text
+dist/*.exe filter=lfs diff=lfs merge=lfs -text
