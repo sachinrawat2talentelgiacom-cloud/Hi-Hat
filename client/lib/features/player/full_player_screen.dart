@@ -1389,18 +1389,24 @@ class _LyricsLanguageSwitch extends StatelessWidget {
     required this.language,
     required this.onChanged,
     this.width = 181,
+    this.height = 38,
+    this.padding = 3,
+    this.fontSize,
   });
 
   final _LyricsLanguage language;
   final ValueChanged<_LyricsLanguage> onChanged;
   final double width;
+  final double height;
+  final double padding;
+  final double? fontSize;
 
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('lyrics-language-switch'),
     width: width,
-    height: 38,
-    padding: const EdgeInsets.all(3),
+    height: height,
+    padding: EdgeInsets.all(padding),
     decoration: BoxDecoration(
       color: const Color(0xFF20262B),
       borderRadius: BorderRadius.circular(999),
@@ -1434,6 +1440,7 @@ class _LyricsLanguageSwitch extends StatelessWidget {
                 color: selected ? const Color(0xFF101417) : Colors.white,
                 fontFamily: 'Inter',
                 fontWeight: FontWeight.w500,
+                fontSize: fontSize,
               ),
             ),
           ),
@@ -1450,12 +1457,14 @@ class LyricsView extends ConsumerStatefulWidget {
     this.immersive = false,
     this.showHeader = true,
     this.compactLines = false,
+    this.compactPanel = false,
   });
 
   final bool scrollable;
   final bool immersive;
   final bool showHeader;
   final bool compactLines;
+  final bool compactPanel;
 
   @override
   ConsumerState<LyricsView> createState() => _LyricsViewState();
@@ -1669,11 +1678,13 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                       translation.text,
                       style: const TextStyle(height: 1.65),
                     ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Translated online with DeepL. Machine translations may miss wordplay or cultural context.',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    if (!widget.compactPanel) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Translated online with DeepL. Machine translations may miss wordplay or cultural context.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
                   ],
                 );
               },
@@ -1757,7 +1768,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                         active: active,
                         text: lyrics.synced[i].text,
                       ),
-                    if (!widget.immersive) ...[
+                    if (!widget.immersive && !widget.compactPanel) ...[
                       const SizedBox(height: 12),
                       const Text(
                         'Lyrics provided by LRCLIB',
@@ -1774,13 +1785,21 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
         final title = Padding(
           padding: EdgeInsets.only(top: widget.immersive ? 8 : 0),
           child: Text(
-            widget.immersive ? 'LYRICS' : 'Lyrics',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: widget.immersive ? Colors.white : null,
-              fontWeight: widget.immersive ? FontWeight.w400 : null,
-              fontSize: widget.immersive ? 16 : null,
-              letterSpacing: widget.immersive ? 4.2 : null,
-            ),
+            widget.immersive || widget.compactPanel ? 'LYRICS' : 'Lyrics',
+            style: widget.compactPanel
+                ? const TextStyle(
+                    color: Color(0xFF727A73),
+                    fontFamily: 'Inter',
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.8,
+                  )
+                : Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: widget.immersive ? Colors.white : null,
+                    fontWeight: widget.immersive ? FontWeight.w400 : null,
+                    fontSize: widget.immersive ? 16 : null,
+                    letterSpacing: widget.immersive ? 4.2 : null,
+                  ),
           ),
         );
         void selectLanguage(_LyricsLanguage value) =>
@@ -1790,7 +1809,16 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                     )
                     .state =
                 value;
-        final Widget languageSelector = widget.immersive
+        final Widget languageSelector = widget.compactPanel
+            ? _LyricsLanguageSwitch(
+                language: language,
+                width: 232,
+                height: 28,
+                padding: 2,
+                fontSize: 10,
+                onChanged: selectLanguage,
+              )
+            : widget.immersive
             ? _LyricsLanguageSwitch(
                 language: language,
                 width: widget.compactLines ? 270 : 286,
@@ -1815,7 +1843,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 onSelectionChanged: (selection) =>
                     selectLanguage(selection.first),
               );
-        if (constraints.maxWidth < 360) {
+        if (constraints.maxWidth < 360 && !widget.compactPanel) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [title, const SizedBox(height: 8), languageSelector],
@@ -1826,7 +1854,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
           children: [
             Expanded(child: title),
             languageSelector,
-            if (widget.immersive) ...[
+            if (widget.immersive && !widget.compactPanel) ...[
               const SizedBox(width: 26),
               Transform.translate(
                 offset: const Offset(0, -5),
@@ -1842,7 +1870,9 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       },
     );
     final lyricsBody = Padding(
-      padding: const EdgeInsets.only(right: 12, bottom: 80),
+      padding: widget.compactPanel
+          ? EdgeInsets.zero
+          : const EdgeInsets.only(right: 12, bottom: 80),
       child: lyricsContent,
     );
 
@@ -1899,7 +1929,11 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [header, const SizedBox(height: 12), lyricsBody],
+      children: [
+        header,
+        SizedBox(height: widget.compactPanel ? 10 : 12),
+        lyricsBody,
+      ],
     );
     if (!widget.scrollable) return content;
     return ScrollConfiguration(

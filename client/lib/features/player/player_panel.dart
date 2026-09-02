@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,9 +9,7 @@ import '../../core/scroll_behavior.dart';
 import '../../services/audio_engine.dart';
 import '../../services/download_service.dart';
 import '../../widgets/track_artwork.dart';
-import '../../widgets/brand_widgets.dart';
 import 'full_player_screen.dart';
-import 'song_actions.dart';
 
 class PlayerPanel extends ConsumerStatefulWidget {
   const PlayerPanel({super.key, this.track});
@@ -55,257 +55,11 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
         ),
       );
     }
-    final totalMs = playback.duration.inMilliseconds;
-    final progress = totalMs > 0
-        ? (playback.position.inMilliseconds / totalMs).clamp(0.0, 1.0)
-        : 0.0;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        controller: scrollController,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Row(
-                  children: [
-                    const HiHatEyebrow('Listening instrument'),
-                    const Spacer(),
-                    if (current.isLocal)
-                      const HiHatStatusChip(
-                        label: 'Owned file',
-                        icon: Icons.offline_pin_rounded,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 360,
-                    maxHeight: 360,
-                  ),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: TrackArtwork(
-                      artworkUrl:
-                          current.highResArtworkUrl ?? current.artworkUrl,
-                      borderRadius: BorderRadius.circular(14),
-                      iconSize: 72,
-                      highRes: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (current.explicit) ...[
-                      const _ExplicitBadge(),
-                      const SizedBox(width: 8),
-                    ],
-                    Flexible(
-                      child: Text(
-                        current.displayTitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  current.artist,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge
-                      ?.copyWith(fontWeight: FontWeight.w500),
-                ),
-                if (current.album != null) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    current.albumWithYear ?? current.album!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                Slider(
-                  value: progress,
-                  onChanged: playback.duration == Duration.zero
-                      ? null
-                      : (value) => ref
-                            .read(audioEngineProvider.notifier)
-                            .seek(playback.duration * value),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(_time(playback.position)),
-                    Text(_time(playback.duration)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      tooltip: playback.shuffle ? 'Shuffle on' : 'Shuffle off',
-                      isSelected: playback.shuffle,
-                      onPressed: ref
-                          .read(audioEngineProvider.notifier)
-                          .toggleShuffle,
-                      icon: const Icon(Icons.shuffle_rounded),
-                    ),
-                    IconButton(
-                      tooltip: 'Previous',
-                      onPressed: ref
-                          .read(audioEngineProvider.notifier)
-                          .previous,
-                      icon: const Icon(Icons.skip_previous_rounded),
-                      iconSize: 36,
-                    ),
-                    const SizedBox(width: 4),
-                    FilledButton(
-                      onPressed: current.isLocal
-                          ? () =>
-                                ref.read(audioEngineProvider.notifier).toggle()
-                          : null,
-                      style: FilledButton.styleFrom(
-                        shape: const CircleBorder(),
-                        minimumSize: const Size.square(72),
-                      ),
-                      child: Icon(
-                        playback.playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        size: 36,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      tooltip: 'Next',
-                      onPressed: ref.read(audioEngineProvider.notifier).next,
-                      icon: const Icon(Icons.skip_next_rounded),
-                      iconSize: 36,
-                    ),
-                    IconButton(
-                      tooltip: 'Repeat ${playback.repeatMode.name}',
-                      isSelected: playback.repeatMode != PlaybackRepeatMode.off,
-                      onPressed: ref
-                          .read(audioEngineProvider.notifier)
-                          .cycleRepeat,
-                      icon: Icon(
-                        playback.repeatMode == PlaybackRepeatMode.one
-                            ? Icons.repeat_one_rounded
-                            : Icons.repeat_rounded,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: playback.muted ? 'Unmute' : 'Mute',
-                      onPressed: ref
-                          .read(audioEngineProvider.notifier)
-                          .toggleMute,
-                      icon: Icon(
-                        playback.muted
-                            ? Icons.volume_off_rounded
-                            : Icons.volume_up_rounded,
-                      ),
-                    ),
-                    Expanded(
-                      child: Slider(
-                        value: playback.volume,
-                        onChanged: ref
-                            .read(audioEngineProvider.notifier)
-                            .setVolume,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Queue',
-                      onPressed: () => showQueue(context),
-                      icon: const Icon(Icons.queue_music_rounded),
-                    ),
-                    IconButton(
-                      tooltip: 'Open full-screen player',
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const FullPlayerScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.open_in_full_rounded),
-                    ),
-                    SongActionsButton(track: current),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 18),
-                _Reading(
-                  label: 'SOURCE',
-                  value: current.quality.display,
-                  icon: current.isLocal
-                      ? Icons.verified_rounded
-                      : Icons.high_quality_rounded,
-                ),
-                const SizedBox(height: 12),
-                _Reading(
-                  label: 'OWNED FILE',
-                  value: current.localPath ?? 'Not stored on this device yet',
-                  icon: current.isLocal
-                      ? Icons.folder_open_rounded
-                      : Icons.cloud_download_rounded,
-                ),
-                const SizedBox(height: 12),
-                _Reading(
-                  label: 'LOCAL ARCHIVE',
-                  value: current.isLocal
-                      ? [
-                          if (current.formattedFileSize != null)
-                            current.formattedFileSize!,
-                          'FLAC lossless',
-                        ].join('  ·  ')
-                      : 'Not archived on this device yet',
-                  icon: Icons.inventory_2_rounded,
-                ),
-                if (transfer != null && _isActivePhase(transfer.phase)) ...[
-                  const SizedBox(height: 22),
-                  LinearProgressIndicator(
-                    value: transfer.progress > 0 ? transfer.progress : null,
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      transfer.progress > 0
-                          ? '${_phase(transfer.phase)}  ${_percent(transfer.progress)}'
-                          : _phase(transfer.phase),
-                    ),
-                  ),
-                ] else if (transfer != null && transfer.phase == 'FAILED') ...[
-                  const SizedBox(height: 22),
-                  _Reading(
-                    label: 'SOURCE UNAVAILABLE',
-                    value: transfer.error ?? 'This track could not be downloaded. Try another result.',
-                    icon: Icons.block_rounded,
-                  ),
-                ],
-                const SizedBox(height: 24),
-                const LyricsView(),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return _ReferenceSidePlayer(
+      playback: playback,
+      track: current,
+      transfer: transfer,
+      scrollController: scrollController,
     );
   }
 
@@ -340,6 +94,463 @@ class _PlayerPanelState extends ConsumerState<PlayerPanel> {
     'VERIFYING',
     'FINALIZING',
   }.contains(value);
+}
+
+class _ReferenceSidePlayer extends ConsumerWidget {
+  const _ReferenceSidePlayer({
+    required this.playback,
+    required this.track,
+    required this.transfer,
+    required this.scrollController,
+  });
+
+  final PlaybackState playback;
+  final TrackSummary track;
+  final TransferState? transfer;
+  final ScrollController scrollController;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ColoredBox(
+    color: const Color(0xFF080B09),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontal = constraints.maxWidth >= 400 ? 16.0 : 12.0;
+        final artworkSize = math.min(
+          408.0,
+          constraints.maxWidth - (horizontal * 2),
+        );
+        final activeTransfer =
+            transfer != null &&
+            _PlayerPanelState._isActivePhase(transfer!.phase);
+        return SingleChildScrollView(
+          controller: scrollController,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    key: const ValueKey('side-player-header'),
+                    height: 48,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          tooltip: 'Open full-screen player',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const FullPlayerScreen(),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.open_in_full_rounded,
+                            size: 20,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Queue',
+                          onPressed: () => showQueue(context),
+                          icon: const Icon(Icons.queue_music_rounded, size: 20),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: SizedBox.square(
+                      key: const ValueKey('side-player-artwork'),
+                      dimension: artworkSize,
+                      child: TrackArtwork(
+                        artworkUrl: track.highResArtworkUrl ?? track.artworkUrl,
+                        borderRadius: BorderRadius.circular(14),
+                        iconSize: 72,
+                        highRes: true,
+                        showBorder: false,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (track.explicit) ...[
+                        const _ExplicitBadge(),
+                        const SizedBox(width: 6),
+                      ],
+                      Flexible(
+                        child: Text(
+                          track.displayTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Inter',
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    track.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFF858C86),
+                      fontFamily: 'Inter',
+                      fontSize: 14,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  _SidePlayerProgress(playback: playback),
+                  const SizedBox(height: 20),
+                  _SidePlayerTransport(playback: playback),
+                  const SizedBox(height: 23),
+                  _SidePlayerSecondaryControls(playback: playback),
+                  const SizedBox(height: 23),
+                  _SidePlayerMetadata(track: track),
+                  if (activeTransfer) ...[
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: transfer!.progress > 0 ? transfer!.progress : null,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      transfer!.progress > 0
+                          ? '${_PlayerPanelState._phase(transfer!.phase)} ${_PlayerPanelState._percent(transfer!.progress)}'
+                          : _PlayerPanelState._phase(transfer!.phase),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ],
+                  const SizedBox(height: 23),
+                  Container(
+                    key: const ValueKey('side-player-lyrics-card'),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D110F),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF1A211C)),
+                    ),
+                    child: const LyricsView(
+                      scrollable: false,
+                      compactPanel: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _SidePlayerProgress extends ConsumerWidget {
+  const _SidePlayerProgress({required this.playback});
+
+  final PlaybackState playback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final max = playback.duration.inMilliseconds.toDouble();
+    final value = max <= 0
+        ? 0.0
+        : playback.position.inMilliseconds.clamp(0, max.toInt()).toDouble();
+    return SizedBox(
+      key: const ValueKey('side-player-progress'),
+      height: 40,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 20,
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: HiHatColors.signal,
+                inactiveTrackColor: const Color(0xFF242925),
+                trackHeight: 3,
+                thumbShape: SliderComponentShape.noThumb,
+                overlayShape: SliderComponentShape.noOverlay,
+              ),
+              child: Slider(
+                value: value,
+                max: max <= 0 ? 1 : max,
+                onChanged: max <= 0
+                    ? null
+                    : (next) => ref
+                          .read(audioEngineProvider.notifier)
+                          .seek(Duration(milliseconds: next.round())),
+              ),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_PlayerPanelState._time(playback.position)),
+              Text(_PlayerPanelState._time(playback.duration)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidePlayerTransport extends ConsumerWidget {
+  const _SidePlayerTransport({required this.playback});
+
+  final PlaybackState playback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final engine = ref.read(audioEngineProvider.notifier);
+    return SizedBox(
+      key: const ValueKey('side-player-transport'),
+      height: 56,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _SideTransportButton(
+            tooltip: 'Rewind 10 seconds',
+            icon: Icons.replay_10_rounded,
+            onPressed: () => engine.seekRelative(const Duration(seconds: -10)),
+          ),
+          _SideTransportButton(
+            tooltip: 'Previous',
+            icon: Icons.skip_previous_rounded,
+            onPressed: engine.previous,
+          ),
+          SizedBox.square(
+            dimension: 56,
+            child: IconButton(
+              tooltip: playback.playing ? 'Pause' : 'Play',
+              onPressed: trackCanPlay(playback) ? engine.toggle : null,
+              icon: Icon(
+                playback.playing
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 38,
+              ),
+            ),
+          ),
+          _SideTransportButton(
+            tooltip: 'Next',
+            icon: Icons.skip_next_rounded,
+            onPressed: engine.next,
+          ),
+          _SideTransportButton(
+            tooltip: 'Forward 10 seconds',
+            icon: Icons.forward_10_rounded,
+            onPressed: () => engine.seekRelative(const Duration(seconds: 10)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool trackCanPlay(PlaybackState state) => state.track?.isLocal ?? false;
+}
+
+class _SideTransportButton extends StatelessWidget {
+  const _SideTransportButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 48,
+    child: IconButton(
+      tooltip: tooltip,
+      padding: EdgeInsets.zero,
+      onPressed: onPressed,
+      icon: Icon(icon, color: HiHatColors.mineral, size: 22),
+    ),
+  );
+}
+
+class _SidePlayerSecondaryControls extends ConsumerWidget {
+  const _SidePlayerSecondaryControls({required this.playback});
+
+  final PlaybackState playback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final engine = ref.read(audioEngineProvider.notifier);
+    return SizedBox(
+      key: const ValueKey('side-player-secondary-controls'),
+      height: 48,
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Repeat ${playback.repeatMode.name}',
+            onPressed: engine.cycleRepeat,
+            icon: Icon(
+              playback.repeatMode == PlaybackRepeatMode.one
+                  ? Icons.repeat_one_rounded
+                  : Icons.repeat_rounded,
+              size: 20,
+              color: playback.repeatMode == PlaybackRepeatMode.off
+                  ? HiHatColors.trace
+                  : Colors.white,
+            ),
+          ),
+          IconButton(
+            tooltip: playback.shuffle ? 'Turn shuffle off' : 'Turn shuffle on',
+            onPressed: engine.toggleShuffle,
+            icon: Icon(
+              Icons.shuffle_rounded,
+              size: 20,
+              color: playback.shuffle ? Colors.white : HiHatColors.trace,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            tooltip: playback.muted ? 'Unmute' : 'Mute',
+            onPressed: engine.toggleMute,
+            icon: Icon(
+              playback.muted
+                  ? Icons.volume_off_rounded
+                  : Icons.volume_up_rounded,
+              size: 20,
+              color: HiHatColors.trace,
+            ),
+          ),
+          SizedBox(
+            width: 160,
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: HiHatColors.trace,
+                inactiveTrackColor: const Color(0xFF242925),
+                trackHeight: 4,
+                thumbShape: SliderComponentShape.noThumb,
+                overlayShape: SliderComponentShape.noOverlay,
+              ),
+              child: Slider(
+                value: playback.volume,
+                onChanged: engine.setVolume,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidePlayerMetadata extends StatelessWidget {
+  const _SidePlayerMetadata({required this.track});
+
+  final TrackSummary track;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('side-player-metadata'),
+    height: 116,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFF0D110F),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: const Color(0xFF1A211C)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _SideMetadataValue(
+                label: 'SOURCE',
+                value: track.quality.display,
+                icon: Icons.shuffle_rounded,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _SideMetadataValue(
+                label: 'LOCAL ARCHIVE',
+                value: track.isLocal
+                    ? [
+                        if (track.formattedFileSize != null)
+                          track.formattedFileSize!,
+                        'FLAC Lossless',
+                      ].join('  \u00B7  ')
+                    : 'Not archived',
+                icon: Icons.inventory_2_rounded,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _SideMetadataValue(
+          label: 'OWNED FILE',
+          value: track.localPath ?? 'Not stored on this device yet',
+          icon: Icons.folder_rounded,
+        ),
+      ],
+    ),
+  );
+}
+
+class _SideMetadataValue extends StatelessWidget {
+  const _SideMetadataValue({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Icon(icon, size: 11, color: const Color(0xFF727A73)),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF727A73),
+              fontFamily: 'Inter',
+              fontSize: 9,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 1.4,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Color(0xFFD8DED8),
+          fontFamily: 'Inter',
+          fontSize: 11,
+          height: 1.2,
+        ),
+      ),
+    ],
+  );
 }
 
 class MiniPlayer extends ConsumerWidget {
@@ -807,46 +1018,4 @@ class _ExplicitBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Reading extends StatelessWidget {
-  const _Reading({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-  final String label;
-  final String value;
-  final IconData icon;
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
-                letterSpacing: 0.8,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
 }

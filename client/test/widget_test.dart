@@ -663,6 +663,10 @@ void main() {
   testWidgets('PlayerPanel displays only essential local-file metadata', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(440, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     const track = TrackSummary(
       id: 'local:abc',
       provider: 'local',
@@ -715,10 +719,10 @@ void main() {
 
     expect(find.text('Harder Better Faster Stronger'), findsOneWidget);
     expect(find.text('Daft Punk'), findsOneWidget);
-    expect(find.text('Discovery (2001)'), findsOneWidget);
+    expect(find.text('Discovery (2001)'), findsNothing);
     expect(find.text('SOURCE'), findsOneWidget);
     expect(find.text('FLAC · 24-bit · 96 kHz'), findsOneWidget);
-    expect(find.text('OWNED FILE'), findsNWidgets(2));
+    expect(find.text('OWNED FILE'), findsOneWidget);
     expect(
       find.text(
         r'C:\Music\Daft Punk\Discovery\04. Harder Better Faster Stronger.flac',
@@ -726,11 +730,31 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('LOCAL ARCHIVE'), findsOneWidget);
-    expect(find.text('32.9 MB  ·  FLAC lossless'), findsOneWidget);
+    expect(find.text('32.9 MB  ·  FLAC Lossless'), findsOneWidget);
     expect(find.text('ACOUSTIC PROPERTIES'), findsNothing);
     expect(find.text('CATALOG INFO'), findsNothing);
     expect(find.text('ISRC IDENTIFIER'), findsNothing);
     expect(find.text('COPYRIGHT / RELEASE'), findsNothing);
     expect(find.byType(TrackArtwork), findsOneWidget);
+    expect(
+      tester.getRect(find.byKey(const ValueKey('side-player-header'))),
+      const Rect.fromLTWH(16, 8, 408, 48),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('side-player-artwork'))),
+      const Rect.fromLTWH(16, 64, 408, 408),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('side-player-progress'))).top,
+      closeTo(567, .1),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('side-player-metadata'))).top,
+      closeTo(777, .1),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('side-player-lyrics-card'))).top,
+      closeTo(916, .1),
+    );
   });
 }
