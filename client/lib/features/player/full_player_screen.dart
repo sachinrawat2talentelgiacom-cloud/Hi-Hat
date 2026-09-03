@@ -1537,20 +1537,28 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     final isActive = index == active;
     return Padding(
       key: lineKeys.putIfAbsent(index, GlobalKey.new),
-      padding: EdgeInsets.symmetric(vertical: widget.immersive ? 10 : 5),
+      padding: EdgeInsets.symmetric(
+        vertical: widget.compactPanel ? 4 : (widget.immersive ? 10 : 5),
+      ),
       child: ImageFiltered(
         imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
         child: Text(
           text,
-          textAlign: widget.immersive ? TextAlign.left : TextAlign.center,
+          textAlign: widget.immersive || widget.compactPanel
+              ? TextAlign.left
+              : TextAlign.center,
           style: TextStyle(
             fontFamily: 'Inter',
-            fontSize: widget.compactLines
+            fontSize: widget.compactPanel
+                ? 14.3
+                : widget.compactLines
                 ? (isActive ? 26 : 25)
                 : widget.immersive
                 ? 40
                 : (isActive ? 19 : 16),
-            height: widget.compactLines
+            height: widget.compactPanel
+                ? 1.25
+                : widget.compactLines
                 ? 1.16
                 : (widget.immersive ? 1.25 : null),
             fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
@@ -1676,7 +1684,13 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   children: [
                     SelectableText(
                       translation.text,
-                      style: const TextStyle(height: 1.65),
+                      style: TextStyle(
+                        fontSize: widget.compactPanel ? 14.3 : null,
+                        height: widget.compactPanel ? 1.4 : 1.65,
+                        fontWeight: widget.compactPanel
+                            ? FontWeight.w600
+                            : null,
+                      ),
                     ),
                     if (!widget.compactPanel) ...[
                       const SizedBox(height: 12),
@@ -1717,7 +1731,11 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 }
                 return SelectableText(
                   romaji,
-                  style: const TextStyle(height: 1.65),
+                  style: TextStyle(
+                    fontSize: widget.compactPanel ? 14.3 : null,
+                    height: widget.compactPanel ? 1.4 : 1.65,
+                    fontWeight: widget.compactPanel ? FontWeight.w600 : null,
+                  ),
                 );
               },
             ),
@@ -1748,7 +1766,11 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   }
                   return SelectableText(
                     lyrics.plain,
-                    style: const TextStyle(height: 1.65),
+                    style: TextStyle(
+                      fontSize: widget.compactPanel ? 14.3 : null,
+                      height: widget.compactPanel ? 1.4 : 1.65,
+                      fontWeight: widget.compactPanel ? FontWeight.w600 : null,
+                    ),
                   );
                 }
                 var active = -1;
@@ -1757,7 +1779,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 }
                 followActiveLine(context, active);
                 return Column(
-                  crossAxisAlignment: widget.immersive
+                  crossAxisAlignment: widget.immersive || widget.compactPanel
                       ? CrossAxisAlignment.start
                       : CrossAxisAlignment.center,
                   children: [
@@ -1790,9 +1812,9 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 ? const TextStyle(
                     color: Color(0xFF727A73),
                     fontFamily: 'Inter',
-                    fontSize: 10,
+                    fontSize: 10.4,
                     fontWeight: FontWeight.w500,
-                    letterSpacing: 1.8,
+                    letterSpacing: 1.5,
                   )
                 : Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: widget.immersive ? Colors.white : null,
@@ -1812,10 +1834,10 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
         final Widget languageSelector = widget.compactPanel
             ? _LyricsLanguageSwitch(
                 language: language,
-                width: 232,
-                height: 28,
-                padding: 2,
-                fontSize: 10,
+                width: 278.4,
+                height: 33.6,
+                padding: 2.4,
+                fontSize: 12,
                 onChanged: selectLanguage,
               )
             : widget.immersive
@@ -1931,7 +1953,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         header,
-        SizedBox(height: widget.compactPanel ? 10 : 12),
+        SizedBox(height: widget.compactPanel ? 10.4 : 12),
         lyricsBody,
       ],
     );

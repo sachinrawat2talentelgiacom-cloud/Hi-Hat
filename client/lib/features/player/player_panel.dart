@@ -233,7 +233,7 @@ class _ReferenceSidePlayer extends ConsumerWidget {
                   const SizedBox(height: 23),
                   Container(
                     key: const ValueKey('side-player-lyrics-card'),
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    padding: const EdgeInsets.fromLTRB(10, 9, 10, 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFF0D110F),
                       borderRadius: BorderRadius.circular(8),
@@ -460,15 +460,16 @@ class _SidePlayerMetadata extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('side-player-metadata'),
-    height: 116,
-    padding: const EdgeInsets.all(12),
+    height: 151,
+    padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: const Color(0xFF0D110F),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       border: Border.all(color: const Color(0xFF1A211C)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
@@ -479,7 +480,7 @@ class _SidePlayerMetadata extends StatelessWidget {
                 icon: Icons.shuffle_rounded,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: _SideMetadataValue(
                 label: 'LOCAL ARCHIVE',
@@ -495,7 +496,6 @@ class _SidePlayerMetadata extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
         _SideMetadataValue(
           label: 'OWNED FILE',
           value: track.localPath ?? 'Not stored on this device yet',
@@ -523,21 +523,25 @@ class _SideMetadataValue extends StatelessWidget {
     children: [
       Row(
         children: [
-          Icon(icon, size: 11, color: const Color(0xFF727A73)),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF727A73),
-              fontFamily: 'Inter',
-              fontSize: 9,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 1.4,
+          Icon(icon, size: 14, color: const Color(0xFF727A73)),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF727A73),
+                fontFamily: 'Inter',
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
         ],
       ),
-      const SizedBox(height: 4),
+      const SizedBox(height: 5),
       Text(
         value,
         maxLines: 1,
@@ -545,7 +549,7 @@ class _SideMetadataValue extends StatelessWidget {
         style: const TextStyle(
           color: Color(0xFFD8DED8),
           fontFamily: 'Inter',
-          fontSize: 11,
+          fontSize: 14,
           height: 1.2,
         ),
       ),

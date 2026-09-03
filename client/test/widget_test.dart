@@ -731,6 +731,12 @@ void main() {
     );
     expect(find.text('LOCAL ARCHIVE'), findsOneWidget);
     expect(find.text('32.9 MB  ·  FLAC Lossless'), findsOneWidget);
+    expect(find.text('Original'), findsOneWidget);
+    expect(find.text('Translated'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('lyrics-language-switch'))),
+      const Size(278.4, 33.6),
+    );
     expect(find.text('ACOUSTIC PROPERTIES'), findsNothing);
     expect(find.text('CATALOG INFO'), findsNothing);
     expect(find.text('ISRC IDENTIFIER'), findsNothing);
@@ -754,7 +760,7 @@ void main() {
     );
     expect(
       tester.getRect(find.byKey(const ValueKey('side-player-lyrics-card'))).top,
-      closeTo(916, .1),
+      closeTo(951, .1),
     );
   });
 }
